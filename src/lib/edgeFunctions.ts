@@ -36,6 +36,54 @@ const MOCK_RESPONSES: Record<string, any> = {
             response_time_hours: 4,
             ai_recommendation: 'Immediate dispatch for safety barrier placement.'
         }
+    },
+    'prioritize-complaint': {
+        success: true,
+        latency_ms: 780,
+        data: {
+            urgency_score: 5,
+            urgency_label: 'HIGH',
+            defect_type: 'Surface Damage',
+            sentiment: 'Urgent',
+            routing_department: 'Road Infrastructure',
+            response_time_hours: 6,
+            ai_recommendation: 'Dispatch pothole repair crew and inspect nearby water seepage.'
+        }
+    },
+    'predict-road-failure': {
+        success: true,
+        latency_ms: 1320,
+        data: {
+            predicted_failure_date: '2026-08-12',
+            months_remaining: 5,
+            risk_level: 'high',
+            deterioration_rate: 3.4,
+            confidence: 0.91,
+            recommendation: 'Coordinate preventive repair before monsoon stress amplifies the defect cluster.',
+            budget_estimate_inr: 225000,
+            risk_factors: [
+                { factor: 'Water seepage', impact: 'high', description: 'Base layer saturation detected near drain outlet.' },
+                { factor: 'Heavy stop-start traffic', impact: 'medium', description: 'Repeated bus braking is stressing the same segment.' }
+            ],
+            maintenance_schedule: [
+                { action: 'Emergency patching', due_by: '2026-03-27', estimated_cost_inr: 85000, priority: 'critical' },
+                { action: 'Drainage correction', due_by: '2026-04-08', estimated_cost_inr: 140000, priority: 'high' }
+            ]
+        }
+    },
+    'analyze-road-image': {
+        success: true,
+        latency_ms: 1090,
+        data: {
+            defects: [
+                {
+                    type: 'pothole',
+                    severity: 4,
+                    confidence: 0.93,
+                    description: 'Circular pothole cluster detected near the left wheel path.'
+                }
+            ]
+        }
     }
 }
 

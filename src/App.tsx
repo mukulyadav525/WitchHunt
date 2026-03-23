@@ -5,23 +5,38 @@ import { useRealtime } from './hooks/useRealtime';
 import { useUIStore } from './store/uiStore';
 import { PageLayout } from './components/layout';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
-import { LandingPage } from './pages/LandingPage';
-import { Dashboard } from './pages/Dashboard';
-import { AdminPanel } from './pages/admin/AdminPanel';
-import { RoadInventory } from './pages/roads/RoadInventory';
-import { RoadHealthPredictions } from './pages/predictions/RoadHealthPredictions';
-import { ExcavationOptimizer } from './pages/excavations/ExcavationOptimizer';
-import { ComplaintAI } from './pages/complaints/ComplaintAI';
-import { RoadSurveyUpload } from './pages/surveys/RoadSurveyUpload';
-import { UtilityPortal } from './pages/utility/UtilityPortal';
-import { PublicComplaintForm } from './pages/complaints/PublicComplaintForm';
-import { PublicTracker } from './pages/public/PublicTracker';
-import { RoadPassport } from './pages/roads/RoadPassport';
-import { CabDashcamPlaceholder } from './pages/dashcam/CabDashcamPlaceholder';
-import { MapPage } from './pages/map/MapPage';
-import { DeptDashboard } from './pages/department/DeptDashboard';
-import { Auth } from './pages/auth/Auth';
 import { Toaster } from 'react-hot-toast';
+
+const LandingPage = React.lazy(() => import('./pages/LandingPage').then((module) => ({ default: module.LandingPage })));
+const Dashboard = React.lazy(() => import('./pages/Dashboard').then((module) => ({ default: module.Dashboard })));
+const AdminPanel = React.lazy(() => import('./pages/admin/AdminPanel').then((module) => ({ default: module.AdminPanel })));
+const RoadInventory = React.lazy(() => import('./pages/roads/RoadInventory').then((module) => ({ default: module.RoadInventory })));
+const RoadHealthPredictions = React.lazy(() => import('./pages/predictions/RoadHealthPredictions').then((module) => ({ default: module.RoadHealthPredictions })));
+const ExcavationOptimizer = React.lazy(() => import('./pages/excavations/ExcavationOptimizer').then((module) => ({ default: module.ExcavationOptimizer })));
+const ComplaintAI = React.lazy(() => import('./pages/complaints/ComplaintAI').then((module) => ({ default: module.ComplaintAI })));
+const RoadSurveyUpload = React.lazy(() => import('./pages/surveys/RoadSurveyUpload').then((module) => ({ default: module.RoadSurveyUpload })));
+const UtilityPortal = React.lazy(() => import('./pages/utility/UtilityPortal').then((module) => ({ default: module.UtilityPortal })));
+const PublicComplaintForm = React.lazy(() => import('./pages/complaints/PublicComplaintForm').then((module) => ({ default: module.PublicComplaintForm })));
+const PublicTracker = React.lazy(() => import('./pages/public/PublicTracker').then((module) => ({ default: module.PublicTracker })));
+const PublicWorksPortal = React.lazy(() => import('./pages/public/PublicWorksPortal').then((module) => ({ default: module.PublicWorksPortal })));
+const CivicEngagement = React.lazy(() => import('./pages/public/CivicEngagement').then((module) => ({ default: module.CivicEngagement })));
+const RoadPassport = React.lazy(() => import('./pages/roads/RoadPassport').then((module) => ({ default: module.RoadPassport })));
+const CabDashcamPlaceholder = React.lazy(() => import('./pages/dashcam/CabDashcamPlaceholder').then((module) => ({ default: module.CabDashcamPlaceholder })));
+const MapPage = React.lazy(() => import('./pages/map/MapPage').then((module) => ({ default: module.MapPage })));
+const DeptDashboard = React.lazy(() => import('./pages/department/DeptDashboard').then((module) => ({ default: module.DeptDashboard })));
+const Auth = React.lazy(() => import('./pages/auth/Auth').then((module) => ({ default: module.Auth })));
+const NotificationCenter = React.lazy(() => import('./pages/notifications/NotificationCenter').then((module) => ({ default: module.NotificationCenter })));
+const DigitalTwinRoadView = React.lazy(() => import('./pages/twin/DigitalTwinRoadView').then((module) => ({ default: module.DigitalTwinRoadView })));
+const PermitApprovalCenter = React.lazy(() => import('./pages/approvals/PermitApprovalCenter').then((module) => ({ default: module.PermitApprovalCenter })));
+const AuditComplianceCenter = React.lazy(() => import('./pages/audit/AuditComplianceCenter').then((module) => ({ default: module.AuditComplianceCenter })));
+const ExecutiveCommandCenter = React.lazy(() => import('./pages/executive/ExecutiveCommandCenter').then((module) => ({ default: module.ExecutiveCommandCenter })));
+const EmergencyCommandCenter = React.lazy(() => import('./pages/emergency/EmergencyCommandCenter').then((module) => ({ default: module.EmergencyCommandCenter })));
+const ContractorPerformanceHub = React.lazy(() => import('./pages/contractors/ContractorPerformanceHub').then((module) => ({ default: module.ContractorPerformanceHub })));
+const FieldOperationsConsole = React.lazy(() => import('./pages/field/FieldOperationsConsole').then((module) => ({ default: module.FieldOperationsConsole })));
+const WorkOrderControlCenter = React.lazy(() => import('./pages/workorders/WorkOrderControlCenter').then((module) => ({ default: module.WorkOrderControlCenter })));
+const ClosureProofCenter = React.lazy(() => import('./pages/closure/ClosureProofCenter').then((module) => ({ default: module.ClosureProofCenter })));
+const SignalFusionCenter = React.lazy(() => import('./pages/signals/SignalFusionCenter').then((module) => ({ default: module.SignalFusionCenter })));
+const TrafficDelayCommandCenter = React.lazy(() => import('./pages/traffic/TrafficDelayCommandCenter').then((module) => ({ default: module.TrafficDelayCommandCenter })));
 
 function AppInner() {
     useRealtime(); // Initialize global city signals
@@ -84,19 +99,33 @@ export default function App() {
                         <Route path="/auth" element={<Auth />} />
                         <Route path="/dept" element={<DeptDashboard />} />
                         <Route path="/report" element={<PublicComplaintForm />} />
+                        <Route path="/works" element={<PublicWorksPortal />} />
+                        <Route path="/engage" element={<CivicEngagement />} />
                         <Route path="/track/:ticket" element={<PublicTracker />} />
 
                         {/* Protected Group */}
                         <Route element={<ProtectedRoute><AppInner /></ProtectedRoute>}>
                             <Route element={<PageLayout profile={profile} onLogout={signOut}><Outlet /></PageLayout>}>
                                 <Route path="/dashboard" element={<Dashboard />} />
+                                <Route path="/executive/*" element={<ExecutiveCommandCenter />} />
                                 <Route path="/roads/:id" element={<RoadPassport />} />
                                 <Route path="/roads" element={<RoadInventory />} />
+                                <Route path="/twin/*" element={<DigitalTwinRoadView />} />
                                 <Route path="/predictions/*" element={<RoadHealthPredictions />} />
                                 <Route path="/excavations/*" element={<ExcavationOptimizer />} />
+                                <Route path="/approvals/*" element={<PermitApprovalCenter />} />
+                                <Route path="/audit/*" element={<AuditComplianceCenter />} />
+                                <Route path="/closure-proof/*" element={<ClosureProofCenter />} />
+                                <Route path="/emergency/*" element={<EmergencyCommandCenter />} />
+                                <Route path="/traffic/*" element={<TrafficDelayCommandCenter />} />
+                                <Route path="/contractors/*" element={<ContractorPerformanceHub />} />
+                                <Route path="/work-orders/*" element={<WorkOrderControlCenter />} />
+                                <Route path="/signal-fusion/*" element={<SignalFusionCenter />} />
                                 <Route path="/complaints/*" element={<ComplaintAI />} />
+                                <Route path="/notifications/*" element={<NotificationCenter />} />
                                 <Route path="/surveys/*" element={<RoadSurveyUpload />} />
                                 <Route path="/utility/*" element={<UtilityPortal />} />
+                                <Route path="/field/*" element={<FieldOperationsConsole />} />
                                 <Route path="/dashcam/*" element={<CabDashcamPlaceholder />} />
                                 <Route path="/map/*" element={<MapPage />} />
 

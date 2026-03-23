@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
+import { CircleMarker, MapContainer, TileLayer, Polyline, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { RoadSegment, Defect } from '../../types';
 import { useUIStore } from '../../store/uiStore';
@@ -51,31 +51,55 @@ export function RoadMap({ roads, defects = [], center = [28.6139, 77.2090], zoom
                 />
 
                 {roads.map(road => (
-                    <Polyline
-                        key={road.id}
-                        positions={(road.location?.bounds as [number, number][]) || []}
-                        pathOptions={{
-                            color: getHealthColor(road.health_score),
-                            weight: 5,
-                            opacity: 0.8
-                        }}
-                    >
-                        <Popup>
-                            <div style={{ padding: 8, minWidth: 150 }}>
-                                <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: 4 }}>{road.name}</div>
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                                    <span style={{ color: 'var(--text-muted)' }}>Health Score</span>
-                                    <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: getHealthColor(road.health_score) }}>{road.health_score}</span>
+                    road.location?.bounds?.length ? (
+                        <Polyline
+                            key={road.id}
+                            positions={road.location.bounds as [number, number][]}
+                            pathOptions={{
+                                color: getHealthColor(road.health_score),
+                                weight: 5,
+                                opacity: 0.8
+                            }}
+                        >
+                            <Popup>
+                                <div style={{ padding: 8, minWidth: 150 }}>
+                                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: 4 }}>{road.name}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                                        <span style={{ color: 'var(--text-muted)' }}>Health Score</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: getHealthColor(road.health_score) }}>{road.health_score}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        </Popup>
-                    </Polyline>
+                            </Popup>
+                        </Polyline>
+                    ) : road.location ? (
+                        <CircleMarker
+                            key={road.id}
+                            center={[road.location.lat, road.location.lng]}
+                            radius={8}
+                            pathOptions={{
+                                color: '#ffffff',
+                                fillColor: getHealthColor(road.health_score),
+                                fillOpacity: 0.85,
+                                weight: 2
+                            }}
+                        >
+                            <Popup>
+                                <div style={{ padding: 8, minWidth: 150 }}>
+                                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: 4 }}>{road.name}</div>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                                        <span style={{ color: 'var(--text-muted)' }}>Health Score</span>
+                                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: getHealthColor(road.health_score) }}>{road.health_score}</span>
+                                    </div>
+                                </div>
+                            </Popup>
+                        </CircleMarker>
+                    ) : null
                 ))}
 
-                {defects.map(defect => (
+                {defects.filter((defect) => defect.location).map(defect => (
                     <Marker
                         key={defect.id}
-                        position={[defect.location?.lat || 0, defect.location?.lng || 0]}
+                        position={[defect.location!.lat, defect.location!.lng]}
                     >
                         <Popup>
                             <div style={{ padding: 8 }}>

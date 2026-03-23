@@ -1,11 +1,20 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Card, Button, Badge, cn } from '../../components/ui';
 import { TrendingUp, AlertCircle, Calendar, DollarSign, BrainCircuit, Activity, ChevronRight, RefreshCw, Clock } from 'lucide-react';
 import { RoadSegment, HealthPrediction } from '../../types';
 import toast from 'react-hot-toast';
+import {
+    createWorkOrderFromPredictionData,
+    listHealthPredictionsData,
+    listRoadSegmentsData,
+    saveHealthPredictionData
+} from '../../lib/supabaseData';
+import { invokeAIFunction } from '../../lib/edgeFunctions';
 
 export function RoadHealthPredictions() {
+    const navigate = useNavigate();
     const [roads, setRoads] = useState<RoadSegment[]>([]);
     const [selectedRoad, setSelectedRoad] = useState<RoadSegment | null>(null);
     const [prediction, setPrediction] = useState<HealthPrediction | null>(null);
@@ -20,20 +29,21 @@ export function RoadHealthPredictions() {
     }, [selectedRoad]);
 
     async function fetchRoads() {
-        const { data } = await supabase.from('road_segments').select('*').order('health_score');
-        if (data) setRoads(data as RoadSegment[]);
+        try {
+            const data = await listRoadSegmentsData();
+            setRoads([...data].sort((a, b) => a.health_score - b.health_score));
+        } catch {
+            setRoads([]);
+        }
     }
 
     async function fetchLatestPrediction(roadId: string) {
-        const { data } = await supabase
-            .from('health_predictions')
-            .select('*')
-            .eq('road_segment_id', roadId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-        if (data) setPrediction(data as HealthPrediction);
-        else setPrediction(null);
+        try {
+            const predictions = await listHealthPredictionsData();
+            setPrediction(predictions.find((item) => item.road_segment_id === roadId) || null);
+        } catch {
+            setPrediction(null);
+        }
     }
 
     async function runAIPrediction() {
@@ -42,25 +52,36 @@ export function RoadHealthPredictions() {
         const toastId = toast.loading('Intelligence Core: Modeling Deterioration Vectors…');
 
         try {
-            const { data, error } = await supabase.functions.invoke('predict-road-failure', {
-                body: {
-                    roadSegmentId: selectedRoad.id,
-                    roadData: {
-                        road_name: selectedRoad.name,
-                        surface_type: selectedRoad.surface_type,
-                        current_health_score: selectedRoad.health_score,
-                        defect_count: selectedRoad.total_defects
-                        // In a real app, we'd pass much more data here
-                    },
-                    userId: (await supabase.auth.getUser()).data.user?.id
-                }
+            const result = await invokeAIFunction<any>('predict-road-failure', {
+                roadSegmentId: selectedRoad.id,
+                roadData: {
+                    road_name: selectedRoad.name,
+                    surface_type: selectedRoad.surface_type,
+                    current_health_score: selectedRoad.health_score,
+                    defect_count: selectedRoad.total_defects
+                },
+                userId: (await supabase.auth.getUser()).data.user?.id
             });
 
-            if (error) throw error;
+            if (result.status !== 'success') {
+                throw new Error(result.status === 'error' ? result.error : 'Prediction engine is still processing.');
+            }
 
+            const userId = (await supabase.auth.getUser()).data.user?.id || null;
+            const savedPrediction = await saveHealthPredictionData({
+                id: '',
+                road_segment_id: selectedRoad.id,
+                health_score: selectedRoad.health_score,
+                created_at: new Date().toISOString(),
+                ...result.data
+            } as HealthPrediction, {
+                created_by: userId,
+                ai_provider: 'google',
+                ai_model_version: 'predict-road-failure',
+                raw_ai_response: result.data
+            });
+            setPrediction(savedPrediction);
             toast.success('Failure prediction and maintenance strategy synthesized', { id: toastId });
-            fetchLatestPrediction(selectedRoad.id);
-            fetchRoads();
         } catch (err: any) {
             toast.error(err.message, { id: toastId });
         } finally {
@@ -68,16 +89,30 @@ export function RoadHealthPredictions() {
         }
     }
 
+    function handleCreateWorkOrder() {
+        if (!selectedRoad || !prediction) return;
+        void (async () => {
+            const result = await createWorkOrderFromPredictionData(selectedRoad, prediction);
+            toast.success(result.created ? 'Preventive work order generated.' : 'Open work order already exists for this prediction.');
+            navigate('/work-orders');
+        })();
+    }
+
     return (
-        <div className="p-8 h-screen flex flex-col pt-4">
-            <div className="flex items-center justify-between mb-8">
+        <div className="page-container min-h-full pt-4">
+            <div className="flex items-center justify-between mb-8 gap-4 flex-wrap">
                 <div>
                     <h1 className="font-display font-bold text-2xl text-[var(--text-primary)] uppercase tracking-widest">Predictive Analytics</h1>
                     <p className="text-[var(--text-muted)] text-sm mt-1">Forecasting infrastructure decay and optimizing maintenance budget ROI.</p>
                 </div>
-                <div className="flex items-center gap-3 bg-[var(--blue-bg)] border border-[var(--blue-border)] px-4 py-2 rounded-xl">
-                    <BrainCircuit className="text-[var(--blue)]" size={16} />
-                    <span className="text-[10px] font-bold text-[var(--blue)] uppercase tracking-widest">AI Engine: Forecasting Unit v2.1</span>
+                <div className="flex items-center gap-3 flex-wrap">
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/work-orders')}>
+                        Work Orders
+                    </Button>
+                    <div className="flex items-center gap-3 bg-[var(--blue-bg)] border border-[var(--blue-border)] px-4 py-2 rounded-xl">
+                        <BrainCircuit className="text-[var(--blue)]" size={16} />
+                        <span className="text-[10px] font-bold text-[var(--blue)] uppercase tracking-widest">AI Engine: Forecasting Unit v2.1</span>
+                    </div>
                 </div>
             </div>
 
@@ -120,8 +155,8 @@ export function RoadHealthPredictions() {
                 <div className="lg:col-span-3 overflow-y-auto no-scrollbar space-y-6">
                     {selectedRoad ? (
                         <>
-                            <div className="flex justify-between items-start">
-                                <div className="flex items-center gap-4">
+                            <div className="flex justify-between items-start gap-4 flex-wrap">
+                                <div className="flex items-center gap-4 min-w-0">
                                     <div className="w-12 h-12 bg-[var(--bg-panel)] border border-[var(--border)] rounded-xl flex items-center justify-center">
                                         <TrendingUp className="text-[var(--blue)]" size={24} />
                                     </div>
@@ -137,6 +172,9 @@ export function RoadHealthPredictions() {
                                 >
                                     {isPredicting ? <RefreshCw className="animate-spin" size={16} /> : <BrainCircuit size={16} />}
                                     {isPredicting ? 'Synthesizing…' : 'Generate AI Forecast'}
+                                </Button>
+                                <Button onClick={handleCreateWorkOrder} variant="secondary" disabled={!prediction}>
+                                    Create Work Order
                                 </Button>
                             </div>
 

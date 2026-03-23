@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { isSupabaseConfigured, supabase } from './supabase'
 
 /**
  * Uploads a file to a Supabase bucket with path partitioning
@@ -9,6 +9,7 @@ export async function uploadRoadImage(
 ): Promise<string> {
     if (!file.type.startsWith('image/')) throw new Error('Only image files allowed')
     if (file.size > 10 * 1024 * 1024) throw new Error('Image must be under 10MB')
+    if (!isSupabaseConfigured) throw new Error('Supabase storage is not configured')
 
     // Compression logic (simplified browser-side)
     const processedFile = file.size > 2 * 1024 * 1024
@@ -19,20 +20,24 @@ export async function uploadRoadImage(
     const filename = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${ext}`
     const path = `${new Date().getFullYear()}/${new Date().getMonth() + 1}/${filename}`
 
-    const { error } = await supabase.storage
-        .from(bucket)
-        .upload(path, processedFile, {
-            contentType: processedFile.type,
-            upsert: false
-        })
+    try {
+        const { error } = await supabase.storage
+            .from(bucket)
+            .upload(path, processedFile, {
+                contentType: processedFile.type,
+                upsert: false
+            })
 
-    if (error) throw new Error(`Upload failed: ${error.message}`)
+        if (error) throw new Error(`Upload failed: ${error.message}`)
 
-    const { data: { publicUrl } } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(path)
+        const { data: { publicUrl } } = supabase.storage
+            .from(bucket)
+            .getPublicUrl(path)
 
-    return publicUrl
+        return publicUrl
+    } catch (error: any) {
+        throw new Error(error?.message || 'Upload failed')
+    }
 }
 
 export async function fileToBase64(file: File): Promise<string> {

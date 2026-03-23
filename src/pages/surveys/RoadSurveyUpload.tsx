@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { uploadRoadImage } from '../../lib/storage';
 import { invokeAIFunction } from '../../lib/edgeFunctions';
@@ -8,6 +9,7 @@ import toast from 'react-hot-toast';
 import { cn } from '../../lib/utils';
 
 export function RoadSurveyUpload() {
+    const navigate = useNavigate();
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [coords, setCoords] = useState({ lat: 19.0760, lng: 72.8777 });
@@ -33,24 +35,30 @@ export function RoadSurveyUpload() {
             const publicUrl = await uploadRoadImage(file, 'road-images');
 
             // 2. Create Database Entry
-            const { data: survey, error: surveyError } = await supabase
-                .from('road_image_surveys')
-                .insert({
-                    title: `Survey - ${new Date().toLocaleDateString()}`,
-                    photo_url: publicUrl,
-                    lat_center: coords.lat,
-                    lng_center: coords.lng,
-                    source: 'manual_upload'
-                })
-                .select()
-                .single();
+            let surveyId = '';
+            try {
+                const { data: survey, error: surveyError } = await supabase
+                    .from('road_image_surveys')
+                    .insert({
+                        title: `Survey - ${new Date().toLocaleDateString()}`,
+                        photo_url: publicUrl,
+                        lat_center: coords.lat,
+                        lng_center: coords.lng,
+                        source: 'manual_upload'
+                    })
+                    .select()
+                    .single();
 
-            if (surveyError) throw surveyError;
+                if (surveyError) throw surveyError;
+                surveyId = survey.id;
+            } catch (error: any) {
+                throw new Error(error?.message || 'Could not create survey record in Supabase.');
+            }
 
             // 3. Trigger AI Analysis
             const toastId = toast.loading('Initializing Neural Analysis...');
             const result = await invokeAIFunction('analyze-road-survey', {
-                surveyId: survey.id,
+                surveyId,
                 imageUrl: publicUrl,
                 location: coords
             });
@@ -71,13 +79,16 @@ export function RoadSurveyUpload() {
 
     return (
         <div className="p-8 max-w-6xl mx-auto space-y-8">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
                     <h1 className="font-display font-black text-2xl text-[var(--text-primary)] uppercase tracking-[0.2em] flex items-center gap-3">
                         Neural Road Survey <Sparkles className="text-[var(--blue)]" size={24} />
                     </h1>
                     <p className="text-[var(--text-muted)] text-xs font-bold uppercase tracking-widest mt-1">Deploying AI vision for infrastructure forensic inspection</p>
                 </div>
+                <Button variant="ghost" onClick={() => navigate('/field')}>
+                    Field Console
+                </Button>
             </div>
 
             <div className="grid lg:grid-cols-2 gap-8">

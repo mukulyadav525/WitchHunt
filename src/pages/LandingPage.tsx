@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
-import { ChevronRight, Check, AlertCircle, ClipboardList } from 'lucide-react';
+import { ChevronRight, Check, AlertCircle, ClipboardList, BellRing, Trophy, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export function LandingPage() {
@@ -29,218 +29,161 @@ export function LandingPage() {
     };
 
     const features = [
-        'AI Pothole Detection',
-        'Road Health Prediction',
-        'Excavation Optimizer',
-        'Citizen Complaint Triage',
-        'Utility Infrastructure Map',
+        'AI pothole detection and ward-level triage',
+        'Road health prediction and intervention planning',
+        'Excavation coordination with public transparency',
+        'Citizen complaint routing with multilingual intelligence',
+        'Digital twin, permits, and utility corridor visibility',
+        'Commissioner ward performance and budget-at-risk command view',
     ];
 
     return (
-        <div style={{
-            minHeight: '100vh',
-            position: 'relative',
-            display: 'flex',
-            flexDirection: 'row',
-            overflow: 'hidden',
-            background: '#ffffff',
-            backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 40px, rgba(0,0,0,0.012) 40px, rgba(0,0,0,0.012) 41px)',
-        }}>
-            {/* Theme Toggle Top Right */}
-            <div style={{ position: 'absolute', top: 24, right: 32, zIndex: 50 }}>
+        <div className="relative min-h-screen overflow-hidden bg-[var(--bg-base)]">
+            <div className="pointer-events-none absolute inset-0">
+                <div className="absolute left-[-8%] top-[-6%] h-[26rem] w-[26rem] rounded-full bg-[var(--brand-light)] blur-[100px]" />
+                <div className="absolute bottom-[-12%] right-[-10%] h-[28rem] w-[28rem] rounded-full bg-[var(--blue-bg)] blur-[120px]" />
+                <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#ff9933_0%,#ffffff_50%,#138808_100%)] opacity-80" />
+            </div>
+
+            <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
                 <ThemeToggle />
             </div>
 
-            {/* Left Column: Value Proposition */}
-            <div style={{
-                flex: '1 1 55%',
-                padding: '80px 64px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                position: 'relative',
-            }}>
-                {/* Subtle saffron radial glow */}
-                <div style={{
-                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                    background: 'radial-gradient(ellipse 60% 40% at 20% 40%, rgba(232,101,10,0.04) 0%, transparent 70%)',
-                    pointerEvents: 'none',
-                }} />
+            <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-[1500px] lg:grid-cols-[minmax(0,1.2fr)_minmax(320px,440px)]">
+                <section className="flex min-w-0 flex-col justify-center px-5 pb-12 pt-24 sm:px-8 lg:px-14 lg:py-16">
+                    <div className="max-w-3xl">
+                        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--brand-border)] bg-[var(--brand-light)] px-4 py-2 text-[0.74rem] font-black uppercase tracking-[0.18em] text-[var(--brand)]">
+                            <ShieldCheck size={14} />
+                            India Urban Works Mission
+                        </div>
 
-                <div style={{ position: 'relative', zIndex: 1, maxWidth: 560 }}>
-                    {/* Brand mark */}
-                    <div style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 8,
-                        marginBottom: 32,
-                        padding: '6px 14px',
-                        background: 'var(--brand-light)',
-                        border: '1px solid var(--brand-border)',
-                        borderRadius: 'var(--radius-full)',
-                        fontSize: '0.75rem', fontWeight: 700,
-                        color: 'var(--brand)',
-                        letterSpacing: '0.04em',
-                    }}>
-                        🛣️ RoadTwin India
-                    </div>
+                        <h1 className="max-w-4xl text-[clamp(2.6rem,7vw,5.5rem)] font-black uppercase leading-[0.92] tracking-[-0.05em] text-[var(--text-primary)]">
+                            Built for Indian cities,
+                            <span className="block text-[var(--blue)]">designed for modern civic trust.</span>
+                        </h1>
 
-                    {/* Hero heading */}
-                    <h1 style={{
-                        fontFamily: 'var(--font-display)',
-                        fontSize: '3.2rem',
-                        fontWeight: 600,
-                        lineHeight: 1.1,
-                        color: 'var(--text-primary)',
-                        letterSpacing: '-0.02em',
-                        marginBottom: 20,
-                    }}>
-                        India's Road<br />
-                        Infrastructure<br />
-                        Command Center
-                    </h1>
+                        <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--text-secondary)] sm:text-lg">
+                            A government-inspired road intelligence platform with transparent public works, modern command tooling,
+                            and responsive field-ready screens for every device size.
+                        </p>
 
-                    <p style={{
-                        fontSize: '1.05rem',
-                        lineHeight: 1.65,
-                        color: 'var(--text-secondary)',
-                        maxWidth: 460,
-                        marginBottom: 32,
-                    }}>
-                        AI-powered road health, defect detection, and citizen complaint management for Indian municipalities.
-                    </p>
-
-                    {/* Divider */}
-                    <div style={{ height: 1, background: 'var(--border)', marginBottom: 28, maxWidth: 400 }} />
-
-                    {/* Feature list */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 36 }}>
-                        {features.map((f, i) => (
-                            <div key={i} style={{
-                                display: 'flex', alignItems: 'center', gap: 10,
-                                fontSize: '0.9rem', color: 'var(--text-secondary)',
-                            }}>
-                                <Check size={16} style={{ color: 'var(--green)', flexShrink: 0 }} />
-                                {f}
+                        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+                            <div className="rounded-[22px] border border-[var(--border)] bg-[var(--bg-surface)]/90 p-5 shadow-[var(--shadow-sm)]">
+                                <div className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">Civic Reach</div>
+                                <div className="mt-2 text-3xl font-black text-[var(--text-primary)]">24x7</div>
+                                <div className="mt-2 text-sm text-[var(--text-secondary)]">Citizen reporting, permit tracking, and service transparency.</div>
                             </div>
-                        ))}
-                    </div>
-
-                    {/* Divider */}
-                    <div style={{ height: 1, background: 'var(--border)', marginBottom: 28, maxWidth: 400 }} />
-
-                    {/* Public complaint CTA */}
-                    <button
-                        onClick={() => navigate('/report')}
-                        className="btn btn-primary btn-lg"
-                        style={{ marginBottom: 16 }}
-                    >
-                        <AlertCircle size={18} />
-                        Report a Road Issue
-                    </button>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                        Public complaint form — no login needed
-                    </div>
-
-                    {/* City names */}
-                    <div style={{
-                        marginTop: 40,
-                        fontSize: '0.82rem', color: 'var(--text-muted)',
-                        fontWeight: 500,
-                    }}>
-                        Mumbai · Pune · Indore
-                    </div>
-                </div>
-            </div>
-
-            {/* Right Column: Login Card */}
-            <div style={{
-                width: 440,
-                flexShrink: 0,
-                padding: '48px 40px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                background: 'var(--bg-base)',
-            }}>
-                <div style={{
-                    background: 'var(--bg-surface)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 'var(--radius-lg)',
-                    padding: '36px 32px',
-                    boxShadow: 'var(--shadow-xl)',
-                }}>
-                    <h3 style={{
-                        fontFamily: 'var(--font-display)',
-                        fontSize: '1.6rem',
-                        fontWeight: 600,
-                        color: 'var(--text-primary)',
-                        marginBottom: 4,
-                    }}>Sign In</h3>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 28 }}>
-                        Municipal Staff Portal
-                    </p>
-
-                    <form onSubmit={handleLogin}>
-                        <div className="field">
-                            <label className="field-label">Email address</label>
-                            <input
-                                type="email"
-                                className="input"
-                                placeholder="you@municipality.gov.in"
-                                value={email}
-                                onChange={e => setEmail(e.target.value)}
-                                required
-                                style={{ height: 44 }}
-                            />
+                            <div className="rounded-[22px] border border-[var(--border)] bg-[var(--bg-surface)]/90 p-5 shadow-[var(--shadow-sm)]">
+                                <div className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">Design System</div>
+                                <div className="mt-2 text-3xl font-black text-[var(--brand)]">Light + Dark</div>
+                                <div className="mt-2 text-sm text-[var(--text-secondary)]">Indian govtech palette with modern mobile-first responsiveness.</div>
+                            </div>
                         </div>
 
-                        <div className="field">
-                            <label className="field-label">Password</label>
-                            <input
-                                type="password"
-                                className="input"
-                                placeholder="••••••••"
-                                value={password}
-                                onChange={e => setPassword(e.target.value)}
-                                required
-                                style={{ height: 44 }}
-                            />
+                        <div className="mt-8 grid gap-3">
+                            {features.map((feature) => (
+                                <div key={feature} className="flex items-start gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)]/70 px-4 py-3">
+                                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--green-bg)] text-[var(--green)]">
+                                        <Check size={14} />
+                                    </span>
+                                    <span className="text-sm leading-6 text-[var(--text-secondary)]">{feature}</span>
+                                </div>
+                            ))}
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="btn btn-primary"
-                            style={{ width: '100%', height: 44, justifyContent: 'center', marginTop: 8 }}
-                        >
-                            {isLoading ? <span className="spinner" /> : (
-                                <>
-                                    <span>Sign In</span>
-                                    <ChevronRight size={18} style={{ transition: 'transform 150ms' }} />
-                                </>
-                            )}
+                        <div className="mt-8 flex flex-wrap gap-3">
+                            <button onClick={() => navigate('/report')} className="btn btn-primary btn-lg">
+                                <AlertCircle size={18} />
+                                Report a Road Issue
+                            </button>
+                            <button onClick={() => navigate('/works')} className="btn btn-secondary btn-lg">
+                                <BellRing size={18} />
+                                View Public Works
+                            </button>
+                            <button onClick={() => navigate('/engage')} className="btn btn-ghost btn-lg">
+                                <Trophy size={18} />
+                                Civic Leaderboard
+                            </button>
+                        </div>
+
+                        <div className="mt-10 flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                            <span>Mumbai</span>
+                            <span className="h-1 w-1 rounded-full bg-[var(--brand)]" />
+                            <span>Delhi</span>
+                            <span className="h-1 w-1 rounded-full bg-[var(--blue)]" />
+                            <span>Indore</span>
+                            <span className="h-1 w-1 rounded-full bg-[var(--green)]" />
+                            <span>Pune</span>
+                        </div>
+                    </div>
+                </section>
+
+                <aside className="flex min-w-0 items-center px-5 pb-10 pt-4 sm:px-8 lg:px-10 lg:py-16">
+                    <div className="w-full rounded-[28px] border border-[var(--border)] bg-[var(--bg-surface)]/95 p-6 shadow-[var(--shadow-xl)] backdrop-blur-xl sm:p-8">
+                        <div className="mb-6">
+                            <div className="text-[0.68rem] font-black uppercase tracking-[0.18em] text-[var(--brand)]">Municipal Staff Access</div>
+                            <h2 className="mt-3 text-3xl font-black text-[var(--text-primary)]">Secure sign-in</h2>
+                            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                                Built for city operations teams, engineers, utility agencies, and command dashboards.
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleLogin} className="space-y-4">
+                            <div className="field !mb-0">
+                                <label className="field-label">Government Email</label>
+                                <input
+                                    type="email"
+                                    className="input h-12"
+                                    placeholder="you@municipality.gov.in"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                />
+                            </div>
+
+                            <div className="field !mb-0">
+                                <label className="field-label">Password</label>
+                                <input
+                                    type="password"
+                                    className="input h-12"
+                                    placeholder="••••••••"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+
+                            <button type="submit" disabled={isLoading} className="btn btn-primary h-12 w-full justify-center">
+                                {isLoading ? (
+                                    <span className="spinner" />
+                                ) : (
+                                    <>
+                                        <span>Sign In</span>
+                                        <ChevronRight size={18} />
+                                    </>
+                                )}
+                            </button>
+                        </form>
+
+                        <div className="my-6 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+                            <div className="h-px flex-1 bg-[var(--border)]" />
+                            or
+                            <div className="h-px flex-1 bg-[var(--border)]" />
+                        </div>
+
+                        <button onClick={() => navigate('/track/CMP-')} className="btn btn-ghost w-full justify-center">
+                            <ClipboardList size={16} />
+                            Track your complaint
                         </button>
-                    </form>
 
-                    {/* Divider */}
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: 12,
-                        margin: '28px 0', color: 'var(--text-muted)', fontSize: '0.78rem',
-                    }}>
-                        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-                        or
-                        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                        <div className="mt-6 rounded-2xl border border-[var(--border)] bg-[var(--bg-panel)] px-4 py-4">
+                            <div className="text-[0.68rem] font-black uppercase tracking-[0.16em] text-[var(--blue)]">Public Confidence Layer</div>
+                            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+                                Public works, alerts, civic reporting, and audit trails are now driven from the live Supabase operations graph.
+                            </p>
+                        </div>
                     </div>
-
-                    {/* Track complaint link */}
-                    <button
-                        onClick={() => navigate('/track/CMP-')}
-                        className="btn btn-ghost"
-                        style={{ width: '100%', justifyContent: 'center' }}
-                    >
-                        <ClipboardList size={16} />
-                        Track your complaint →
-                    </button>
-                </div>
+                </aside>
             </div>
         </div>
     );

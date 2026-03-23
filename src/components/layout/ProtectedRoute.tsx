@@ -14,7 +14,7 @@ export function ProtectedRoute({ children, requiredRole, requireAdmin }: Props) 
 
     if (isLoading) {
         return (
-            <div style={{ height: '100vh', background: 'var(--bg-base)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+            <div style={{ minHeight: '100dvh', background: 'var(--bg-base)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
                 <div className="spinner" style={{ width: 40, height: 40, borderWidth: 4 }} />
                 <div style={{ color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.78rem', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>Verifying Identity</div>
             </div>

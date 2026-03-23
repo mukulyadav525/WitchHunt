@@ -1,33 +1,27 @@
 import React from 'react'
 import { Moon, Sun } from 'lucide-react'
+import { cn } from './index'
 import { useUIStore } from '../../store/uiStore'
 
 export function ThemeToggle({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
     const { theme, toggleTheme } = useUIStore()
+    const nextMode = theme === 'light' ? 'dark' : 'light'
 
     return (
         <button
             onClick={toggleTheme}
             aria-label="Toggle theme"
-            style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: size === 'sm' ? '5px 11px' : '7px 14px',
-                background: 'var(--bg-panel)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-full)',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                color: 'var(--text-secondary)',
-                transition: 'all var(--transition)',
-                fontFamily: 'var(--font-sans)',
-            }}
+            title={`Switch to ${nextMode} mode`}
+            className={cn(
+                'theme-toggle',
+                size === 'sm' && 'theme-toggle-sm',
+                size === 'lg' && 'theme-toggle-lg'
+            )}
         >
-            {theme === 'light'
-                ? <><Moon size={13} /> Dark</>
-                : <><Sun size={13} /> Light</>}
+            <span className="theme-toggle__dot" aria-hidden="true">
+                {theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+            </span>
+            <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
         </button>
     )
 }

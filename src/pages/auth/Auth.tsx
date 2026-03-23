@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
-import { Card, Button, Input, Badge } from '../../components/ui';
+import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { Shield, Lock, Mail, ChevronRight, Activity, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -56,89 +56,61 @@ export function Auth() {
     };
 
     return (
-        <div style={{
-            minHeight: '100vh',
-            background: 'var(--bg-base)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            padding: 24, position: 'relative', overflow: 'hidden',
-        }}>
-            {/* Subtle background accent */}
-            <div style={{
-                position: 'absolute', top: '-10%', left: '-10%', width: '40%', height: '40%',
-                background: 'radial-gradient(ellipse at center, rgba(232,101,10,0.04) 0%, transparent 70%)',
-                pointerEvents: 'none',
-            }} />
-            <div style={{
-                position: 'absolute', bottom: '-10%', right: '-10%', width: '40%', height: '40%',
-                background: 'radial-gradient(ellipse at center, rgba(232,101,10,0.04) 0%, transparent 70%)',
-                pointerEvents: 'none',
-            }} />
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[var(--bg-base)] px-4 py-10 sm:px-6">
+            <div className="pointer-events-none absolute inset-0">
+                <div className="absolute left-[-10%] top-[-10%] h-72 w-72 rounded-full bg-[var(--brand-light)] blur-[100px]" />
+                <div className="absolute bottom-[-10%] right-[-10%] h-80 w-80 rounded-full bg-[var(--blue-bg)] blur-[120px]" />
+            </div>
 
-            <div style={{
-                width: '100%', maxWidth: 420, position: 'relative', zIndex: 10,
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-lg)',
-                boxShadow: 'var(--shadow-xl)',
-                overflow: 'hidden',
-            }}>
-                {/* Header */}
-                <div style={{ padding: '32px 32px 16px', textAlign: 'center' as const }}>
-                    <div style={{
-                        width: 56, height: 56, borderRadius: 'var(--radius-md)',
-                        background: 'var(--brand-light)', border: '1px solid var(--brand-border)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        margin: '0 auto 20px',
-                    }}>
-                        <Shield size={28} style={{ color: 'var(--brand)' }} />
+            <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+                <ThemeToggle />
+            </div>
+
+            <div className="relative z-10 w-full max-w-[460px] overflow-hidden rounded-[30px] border border-[var(--border)] bg-[var(--bg-surface)]/95 shadow-[var(--shadow-xl)] backdrop-blur-xl">
+                <div className="border-b border-[var(--border)] px-6 pb-5 pt-8 text-center sm:px-8">
+                    <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-[20px] border border-[var(--brand-border)] bg-[var(--brand-light)]">
+                        <Shield size={30} className="text-[var(--brand)]" />
                     </div>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
-                        RoadTwin <span style={{ color: 'var(--brand)' }}>India</span>
+                    <div className="text-[0.68rem] font-black uppercase tracking-[0.18em] text-[var(--brand)]">Government Access</div>
+                    <h1 className="mt-3 text-3xl font-black text-[var(--text-primary)]">
+                        RoadTwin <span className="text-[var(--brand)]">India</span>
                     </h1>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Municipal Staff Portal</p>
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">Municipal staff and department portal</p>
                 </div>
 
-                {/* Form */}
-                <div style={{ padding: '16px 32px 32px' }}>
-                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                        <div className="field">
+                <div className="px-6 py-6 sm:px-8 sm:py-8">
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="field !mb-0">
                             <label className="field-label">Email address</label>
-                            <div style={{ position: 'relative' }}>
-                                <Mail size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                            <div className="relative">
+                                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                                 <input
                                     type="email"
                                     placeholder="you@municipality.gov.in"
-                                    className="input"
-                                    style={{ paddingLeft: 36, height: 44 }}
+                                    className="input h-12 pl-10"
                                     value={email}
-                                    onChange={e => setEmail(e.target.value)}
+                                    onChange={(e) => setEmail(e.target.value)}
                                     required
                                 />
                             </div>
                         </div>
 
-                        <div className="field">
+                        <div className="field !mb-0">
                             <label className="field-label">Password</label>
-                            <div style={{ position: 'relative' }}>
-                                <Lock size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                            <div className="relative">
+                                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
                                 <input
                                     type="password"
                                     placeholder="••••••••"
-                                    className="input"
-                                    style={{ paddingLeft: 36, height: 44 }}
+                                    className="input h-12 pl-10"
                                     value={password}
-                                    onChange={e => setPassword(e.target.value)}
+                                    onChange={(e) => setPassword(e.target.value)}
                                     required
                                 />
                             </div>
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="btn btn-primary"
-                            style={{ width: '100%', height: 44, justifyContent: 'center', marginTop: 4 }}
-                        >
+                        <button type="submit" disabled={isLoading} className="btn btn-primary h-12 w-full justify-center">
                             {isLoading ? (
                                 <Activity className="animate-spin" size={20} />
                             ) : (
@@ -150,33 +122,19 @@ export function Auth() {
                         </button>
                     </form>
 
-                    {/* Toggle */}
-                    <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)', textAlign: 'center' as const }}>
+                    <div className="mt-6 border-t border-[var(--border)] pt-5 text-center">
                         <button
                             onClick={() => setIsLogin(!isLogin)}
-                            style={{
-                                background: 'none', border: 'none',
-                                fontSize: '0.82rem', fontWeight: 600,
-                                color: 'var(--text-muted)', cursor: 'pointer',
-                                fontFamily: 'var(--font-sans)',
-                            }}
-                            onMouseOver={e => e.currentTarget.style.color = 'var(--brand)'}
-                            onMouseOut={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                            className="text-sm font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--brand)]"
                         >
-                            {isLogin ? "Need access? Create account" : "Already have an account? Sign in"}
+                            {isLogin ? 'Need access? Create account' : 'Already have an account? Sign in'}
                         </button>
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div style={{
-                    padding: '12px 32px',
-                    borderTop: '1px solid var(--border)',
-                    background: 'var(--bg-panel)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                }}>
-                    <AlertCircle size={12} style={{ color: 'var(--text-muted)' }} />
-                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)' }}>Authorized Personnel Only</span>
+                <div className="flex items-center justify-center gap-2 border-t border-[var(--border)] bg-[var(--bg-panel)] px-6 py-4 text-center text-[0.74rem] font-bold uppercase tracking-[0.14em] text-[var(--text-muted)] sm:px-8">
+                    <AlertCircle size={12} />
+                    Authorized personnel only
                 </div>
             </div>
         </div>

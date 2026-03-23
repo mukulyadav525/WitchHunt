@@ -42,8 +42,8 @@ export function CrossSectionDiagram({ roadName, utilities }: Props) {
                     ))}
 
                     {/* Utilities */}
-                    {utilities.sort((a, b) => a.depth_avg_meters - b.depth_avg_meters).map((u, i) => {
-                        const y = u.depth_avg_meters * pixelsPerMeter + 10;
+                    {[...utilities].sort((a, b) => a.depth_avg_m - b.depth_avg_m).map((u) => {
+                        const y = u.depth_avg_m * pixelsPerMeter + 10;
                         const size = Math.max(12, (u.diameter_mm || 100) / 10);
 
                         return (
@@ -64,7 +64,7 @@ export function CrossSectionDiagram({ roadName, utilities }: Props) {
                                 <foreignObject x={width - 190} y={y - 12} width="180" height="30">
                                     <div className="flex flex-col">
                                         <span className="text-[9px] font-black text-[var(--text-primary)] uppercase tracking-widest truncate">{u.utility_type} · {u.material || 'HDPE'}</span>
-                                        <span className="text-[8px] font-bold text-[var(--text-muted)] uppercase">{u.depth_avg_meters}m · {u.condition}</span>
+                                        <span className="text-[8px] font-bold text-[var(--text-muted)] uppercase">{u.depth_avg_m}m · {u.condition}</span>
                                     </div>
                                 </foreignObject>
                             </g>

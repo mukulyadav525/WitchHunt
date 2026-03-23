@@ -25,7 +25,7 @@ interface UIState {
 
 export const useUIStore = create<UIState>()((set) => ({
     theme: 'light',
-    sidebarOpen: true,
+    sidebarOpen: false,
     activeMapLayer: 'health',
     selectedRoadId: null,
     toasts: [],

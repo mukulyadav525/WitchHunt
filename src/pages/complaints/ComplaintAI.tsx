@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { Card, Button, Badge, cn } from '../../components/ui';
-import { MessageSquare, ShieldAlert, Send, Languages, Search, SlidersHorizontal, ArrowUpRight, CheckCircle, Clock } from 'lucide-react';
+import { MessageSquare, ShieldAlert, Send, Languages, Search, SlidersHorizontal, ArrowUpRight, CheckCircle, Clock, Layers3, Radar } from 'lucide-react';
 import { Complaint } from '../../types';
 import toast from 'react-hot-toast';
+import { invokeAIFunction } from '../../lib/edgeFunctions';
+import { createWorkOrderFromComplaintData, listComplaintsData, listSignalFusionCasesData } from '../../lib/supabaseData';
 
 export function ComplaintAI() {
+    const navigate = useNavigate();
     const [complaints, setComplaints] = useState<Complaint[]>([]);
     const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
+    const [fusionCases, setFusionCases] = useState<any[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [newComplaintType, setNewComplaintType] = useState('');
     const [newComplaintText, setNewComplaintText] = useState('');
@@ -17,26 +22,35 @@ export function ComplaintAI() {
     }, []);
 
     async function fetchComplaints() {
-        const { data } = await supabase.from('complaints').select('*').order('created_at', { ascending: false });
-        if (data) setComplaints(data as Complaint[]);
+        try {
+            const [nextComplaints, nextFusionCases] = await Promise.all([
+                listComplaintsData(),
+                listSignalFusionCasesData()
+            ]);
+            setComplaints(nextComplaints);
+            setFusionCases(nextFusionCases);
+        } catch (error: any) {
+            toast.error(error.message || 'Unable to load complaint records from Supabase.');
+        }
     }
 
     async function handleAnalyze(complaint: Complaint) {
         setIsAnalyzing(true);
         const toastId = toast.loading('Analyzing complaint...');
         try {
-            const { data, error } = await supabase.functions.invoke('prioritize-complaint', {
-                body: {
-                    complaintText: complaint.complaint_text,
-                    complaintId: complaint.id,
-                    userId: (await supabase.auth.getUser()).data.user?.id
-                }
+            const result = await invokeAIFunction<any>('prioritize-complaint', {
+                complaintText: complaint.complaint_text,
+                complaintId: complaint.id,
+                userId: (await supabase.auth.getUser()).data.user?.id
             });
-            if (error) throw error;
-            toast.success(`Complaint analyzed: ${data.analysis.urgency_label} urgency`, { id: toastId });
+            if (result.status !== 'success') {
+                throw new Error(result.status === 'error' ? result.error : 'Complaint analysis is still loading.');
+            }
+            const analysis = result.data;
+            toast.success(`Complaint analyzed: ${analysis.urgency_label || 'HIGH'} urgency`, { id: toastId });
             fetchComplaints();
             if (selectedComplaint?.id === complaint.id) {
-                setSelectedComplaint({ ...complaint, ...data.analysis });
+                setSelectedComplaint({ ...complaint, ...analysis });
             }
         } catch (err: any) {
             toast.error(err.message, { id: toastId });
@@ -47,29 +61,55 @@ export function ComplaintAI() {
 
     async function handleSubmit() {
         if (!newComplaintText) return;
-        const { data, error } = await supabase.from('complaints').insert({
-            complaint_text: newComplaintText,
-            status: 'open'
-        }).select().single();
-        if (data) {
-            toast.success('Complaint logged. Starting AI analysis...');
-            handleAnalyze(data as Complaint);
-            setNewComplaintText('');
-            fetchComplaints();
+        try {
+            const { data } = await supabase.from('complaints').insert({
+                complaint_text: newComplaintText,
+                status: 'open'
+            }).select().single();
+            if (data) {
+                toast.success('Complaint logged. Starting AI analysis...');
+                void handleAnalyze(data as Complaint);
+                setNewComplaintText('');
+                void fetchComplaints();
+            }
+        } catch (error: any) {
+            toast.error(error.message || 'Unable to submit complaint to Supabase.');
         }
     }
 
+    async function handleCreateWorkOrder(complaint: Complaint) {
+        try {
+            const result = await createWorkOrderFromComplaintData(complaint);
+            toast.success(result.created ? 'Work order generated from complaint.' : 'Open work order already exists for this complaint.');
+            navigate('/work-orders');
+        } catch (error: any) {
+            toast.error(error.message || 'Unable to generate a work order from this complaint.');
+        }
+    }
+
+    const selectedFusion = selectedComplaint
+        ? fusionCases.find((item) => item.road_name === (selectedComplaint.road_name || 'Citizen-submitted location'))
+        : null;
+
     return (
-        <div style={{ padding: 'var(--space-8)', display: 'flex', flexDirection: 'column', height: '100vh' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-8)' }}>
+        <div className="page-container min-h-full">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-8)', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
                 <div>
                     <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 600, color: 'var(--text-primary)' }}>Complaints</h1>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.87rem', marginTop: 4 }}>Multilingual citizen complaints with AI priority routing.</p>
                 </div>
-                <span className="ai-badge"><span className="ai-dot" /> NLP Analysis Active</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/signal-fusion')}>
+                        Signal Fusion
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/work-orders')}>
+                        Work Orders
+                    </Button>
+                    <span className="ai-badge"><span className="ai-dot" /> NLP Analysis Active</span>
+                </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 'var(--space-8)', flex: 1, minHeight: 0 }}>
+            <div className="grid gap-8 xl:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)]" style={{ flex: 1, minHeight: 0 }}>
                 {/* Feed */}
                 <Card style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     <div className="card-header">
@@ -112,7 +152,7 @@ export function ComplaintAI() {
                 </Card>
 
                 {/* Content */}
-                <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
+                <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--space-5)', minWidth: 0 }}>
                     {/* New complaint */}
                     <Card style={{ padding: 'var(--space-5)' }}>
                         <span className="card-title" style={{ display: 'block', marginBottom: 'var(--space-3)' }}>Submit New Complaint</span>
@@ -132,19 +172,22 @@ export function ComplaintAI() {
 
                     {selectedComplaint ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-5)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                                     <MessageSquare size={20} style={{ color: 'var(--brand)' }} /> {selectedComplaint.ticket_number}
                                 </h2>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
                                     <Button variant="ghost" size="sm" onClick={() => handleAnalyze(selectedComplaint)} disabled={isAnalyzing}>
                                         <Languages size={14} /> {isAnalyzing ? 'Analyzing...' : 'Re-analyze'}
+                                    </Button>
+                                    <Button variant="secondary" size="sm" onClick={() => handleCreateWorkOrder(selectedComplaint)}>
+                                        <ArrowUpRight size={14} /> Create Work Order
                                     </Button>
                                     <Button variant="secondary" size="sm"><CheckCircle size={14} /> Resolve</Button>
                                 </div>
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-5)' }}>
+                            <div className="grid gap-5 xl:grid-cols-2">
                                 <Card style={{ padding: 'var(--space-5)', borderLeft: '3px solid var(--blue)' }}>
                                     <span className="card-title" style={{ display: 'block', marginBottom: 'var(--space-4)' }}>AI Priority Analysis</span>
                                     <div style={{ fontFamily: 'var(--font-mono)', fontSize: '2rem', fontWeight: 600, color: 'var(--blue)', marginBottom: 4 }}>
@@ -165,7 +208,32 @@ export function ComplaintAI() {
                                         <p style={{ fontSize: '0.87rem', color: 'var(--text-secondary)', fontStyle: 'italic', lineHeight: 1.6 }}>"{selectedComplaint.complaint_text}"</p>
                                     </Card>
 
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+                                    {selectedFusion && (
+                                        <Card style={{ padding: 'var(--space-5)', borderLeft: '3px solid var(--brand)', minWidth: 0 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-3)', flexWrap: 'wrap', marginBottom: 'var(--space-3)' }}>
+                                                <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                                                    <Layers3 size={15} style={{ color: 'var(--brand)' }} /> Signal Fusion Context
+                                                </span>
+                                                <Badge variant={selectedFusion.validation_status === 'work_ordered' ? 'success' : selectedFusion.auto_escalated ? 'warning' : 'info'}>
+                                                    {selectedFusion.validation_status.replace(/_/g, ' ')}
+                                                </Badge>
+                                            </div>
+                                            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 'var(--space-3)', overflowWrap: 'anywhere' }}>
+                                                {selectedFusion.summary}
+                                            </p>
+                                            <div style={{ display: 'grid', gap: 'var(--space-3)', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', marginBottom: 'var(--space-3)' }}>
+                                                <div className="metric-row"><span className="metric-label">48h reports</span><span className="metric-value">{selectedFusion.citizen_reports_48h}</span></div>
+                                                <div className="metric-row"><span className="metric-label">Fleet hits</span><span className="metric-value">{selectedFusion.fleet_hits}</span></div>
+                                                <div className="metric-row"><span className="metric-label">Survey hits</span><span className="metric-value">{selectedFusion.survey_hits}</span></div>
+                                                <div className="metric-row"><span className="metric-label">Confidence</span><span className="metric-value">{Math.round(selectedFusion.confidence_score * 100)}%</span></div>
+                                            </div>
+                                            <Button variant="ghost" size="sm" onClick={() => navigate('/signal-fusion')}>
+                                                <Radar size={14} /> Open Fusion Desk
+                                            </Button>
+                                        </Card>
+                                    )}
+
+                                    <div className="grid gap-3 sm:grid-cols-2">
                                         <Card style={{ padding: 'var(--space-4)', textAlign: 'center' as const }}>
                                             <Languages size={16} style={{ color: 'var(--blue)', margin: '0 auto 6px' }} />
                                             <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' as const }}>{selectedComplaint.sentiment || 'Neutral'}</div>

@@ -1,43 +1,70 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
     LayoutDashboard,
+    Landmark,
     Map as MapIcon,
     FileText,
-    Zap,
     MessageSquare,
-    Settings,
     LogOut,
     ShieldCheck,
     TrendingUp,
     Route,
     ClipboardList,
-    Building2
+    ClipboardCheck,
+    ShieldAlert,
+    Building2,
+    BellRing,
+    Layers3,
+    Stamp,
+    Siren,
+    HardHat,
+    Smartphone,
+    TrafficCone,
+    Radar,
+    Menu,
+    X,
+    type LucideIcon
 } from 'lucide-react';
 import { Profile } from '../../types';
 import { cn } from '../ui';
 import { ThemeToggle } from '../ui/ThemeToggle';
+import { useUIStore } from '../../store/uiStore';
 
 interface SidebarProps {
     profile: Profile | null;
     onLogout: () => void;
+    onNavigate?: () => void;
+    onClose?: () => void;
 }
 
-export function Sidebar({ profile, onLogout }: SidebarProps) {
+export function Sidebar({ profile, onLogout, onNavigate, onClose }: SidebarProps) {
     const overviewLinks = [
         { title: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+        { title: 'Executive', path: '/executive', icon: Landmark },
         { title: 'City Map', path: '/map', icon: MapIcon },
     ];
 
     const roadLinks = [
         { title: 'Road Inventory', path: '/roads', icon: Route },
+        { title: 'Digital Twin', path: '/twin', icon: Layers3 },
         { title: 'Road Surveys', path: '/surveys', icon: FileText },
         { title: 'Health Predictions', path: '/predictions', icon: TrendingUp },
     ];
 
     const opsLinks = [
         { title: 'Excavation Permits', path: '/excavations', icon: ClipboardList },
+        { title: 'Work Orders', path: '/work-orders', icon: FileText },
+        { title: 'Signal Fusion', path: '/signal-fusion', icon: Radar },
+        { title: 'Permit Approvals', path: '/approvals', icon: Stamp },
+        { title: 'Audit & Ledger', path: '/audit', icon: ShieldAlert },
+        { title: 'Closure Proof', path: '/closure-proof', icon: ClipboardCheck },
+        { title: 'Traffic & Delay', path: '/traffic', icon: TrafficCone },
+        { title: 'Emergency Ops', path: '/emergency', icon: Siren },
+        { title: 'Field Console', path: '/field', icon: Smartphone },
         { title: 'Utility Portal', path: '/utility', icon: Building2 },
+        { title: 'Contractors', path: '/contractors', icon: HardHat },
+        { title: 'Notifications', path: '/notifications', icon: BellRing },
         { title: 'Complaints', path: '/complaints', icon: MessageSquare },
     ];
 
@@ -45,135 +72,123 @@ export function Sidebar({ profile, onLogout }: SidebarProps) {
         { title: 'AI Configuration', path: '/admin/ai-config', icon: ShieldCheck },
     ];
 
-    const NavItem = ({ link }: { link: { title: string; path: string; icon: any } }) => (
+    const NavItem = ({ link }: { link: { title: string; path: string; icon: LucideIcon } }) => (
         <NavLink
             to={link.path}
+            onClick={onNavigate}
             className={({ isActive }) => cn(
-                "flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-medium transition-all relative",
+                'flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition-all min-w-0',
                 isActive
-                    ? "text-[var(--brand)] font-semibold"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
+                    ? 'text-[var(--text-primary)]'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
             )}
             style={({ isActive }) => isActive ? {
-                background: 'var(--brand-light)',
-                borderLeft: '3px solid var(--brand)',
-                paddingLeft: '13px',
-            } : {}}
+                background: 'linear-gradient(90deg, var(--brand-light), transparent)',
+                border: '1px solid var(--brand-border)',
+                boxShadow: 'var(--shadow-xs)'
+            } : undefined}
         >
-            <link.icon size={16} className="shrink-0" />
+            <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                style={{
+                    background: 'var(--bg-panel)',
+                    border: '1px solid var(--border)'
+                }}
+            >
+                <link.icon size={16} className="shrink-0" />
+            </span>
             <span className="truncate">{link.title}</span>
         </NavLink>
     );
 
     const SectionLabel = ({ label }: { label: string }) => (
-        <div style={{
-            fontSize: '0.7rem',
-            fontWeight: 700,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase' as const,
-            color: 'var(--text-muted)',
-            padding: '16px 16px 6px',
-        }}>{label}</div>
+        <div className="px-4 pt-5 pb-2 text-[0.7rem] font-black uppercase tracking-[0.18em] text-[var(--text-muted)]">
+            {label}
+        </div>
     );
 
     return (
-        <div style={{
-            width: 240,
-            background: 'var(--bg-base)',
-            borderRight: '1px solid var(--border)',
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-        }}>
-            {/* Logo */}
-            <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{
-                        width: 32, height: 32,
-                        background: 'var(--brand)',
-                        borderRadius: 'var(--radius-sm)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                        <Route size={18} color="#fff" />
+        <div className="shell-sidebar__inner">
+            <div className="border-b border-[var(--border)] px-5 py-5">
+                <div className="flex items-start justify-between gap-3">
+                    <div className="shell-brand">
+                        <div className="shell-brand__logo">
+                            <Route size={20} />
+                        </div>
+                        <div>
+                            <div className="shell-brand__eyebrow">GovTech India</div>
+                            <div className="shell-brand__title">RoadTwin Grid</div>
+                            <div className="shell-brand__subtitle">Urban works command center</div>
+                        </div>
                     </div>
-                    <div>
-                        <div style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1.1rem', color: 'var(--text-primary)', lineHeight: 1.1 }}>RoadTwin</div>
-                        <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--brand)', letterSpacing: '0.06em' }}>India</div>
+
+                    {onClose && (
+                        <button
+                            type="button"
+                            className="btn btn-secondary btn-icon lg:hidden"
+                            onClick={onClose}
+                            aria-label="Close navigation"
+                        >
+                            <X size={16} />
+                        </button>
+                    )}
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--bg-panel)] px-4 py-3">
+                    <div className="text-[0.66rem] font-black uppercase tracking-[0.16em] text-[var(--brand)]">National Style Theme</div>
+                    <div className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">
+                        Saffron, Ashoka blue, and civic green with a modern municipal dashboard feel.
                     </div>
                 </div>
             </div>
 
-            {/* Navigation */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 8px' }}>
+            <div className="flex-1 overflow-y-auto px-3 pb-4">
                 <SectionLabel label="Overview" />
-                <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {overviewLinks.map(link => <NavItem key={link.path} link={link} />)}
+                <nav className="flex flex-col gap-2">
+                    {overviewLinks.map((link) => <NavItem key={link.path} link={link} />)}
                 </nav>
 
                 <SectionLabel label="Roads" />
-                <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {roadLinks.map(link => <NavItem key={link.path} link={link} />)}
+                <nav className="flex flex-col gap-2">
+                    {roadLinks.map((link) => <NavItem key={link.path} link={link} />)}
                 </nav>
 
                 <SectionLabel label="Operations" />
-                <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {opsLinks.map(link => <NavItem key={link.path} link={link} />)}
+                <nav className="flex flex-col gap-2">
+                    {opsLinks.map((link) => <NavItem key={link.path} link={link} />)}
                 </nav>
 
                 {profile?.role === 'admin' && (
                     <>
                         <SectionLabel label="Admin" />
-                        <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                            {adminLinks.map(link => <NavItem key={link.path} link={link} />)}
+                        <nav className="flex flex-col gap-2">
+                            {adminLinks.map((link) => <NavItem key={link.path} link={link} />)}
                         </nav>
                     </>
                 )}
             </div>
 
-            {/* User Card & Footer */}
-            <div style={{ padding: '12px 12px 16px', borderTop: '1px solid var(--border)' }}>
+            <div className="border-t border-[var(--border)] px-4 py-4">
                 {profile && (
-                    <div style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '10px 12px',
-                        background: 'var(--bg-panel)',
-                        borderRadius: 'var(--radius-md)',
-                        marginBottom: 10,
-                    }}>
-                        <div style={{
-                            width: 36, height: 36, borderRadius: 'var(--radius-sm)',
-                            background: 'var(--brand)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontWeight: 700, color: '#fff', fontSize: '0.85rem', flexShrink: 0
-                        }}>
+                    <div className="mb-4 flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--bg-panel)] px-4 py-3">
+                        <div
+                            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-black text-white"
+                            style={{ background: 'linear-gradient(135deg, var(--brand), var(--blue))' }}
+                        >
                             {profile.full_name?.charAt(0) || 'U'}
                         </div>
-                        <div className="flex-1-min-0">
-                            <div className="truncate" style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{profile.full_name || 'User'}</div>
-                            <div className="truncate" style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'capitalize' as const }}>{profile.role.replace('_', ' ')}</div>
+                        <div className="flex-1 min-w-0">
+                            <div className="truncate text-sm font-black text-[var(--text-primary)]">{profile.full_name || 'User'}</div>
+                            <div className="truncate text-[0.72rem] uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                                {profile.role.replace('_', ' ')}
+                            </div>
                         </div>
                     </div>
                 )}
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 4 }}>
+                <div className="flex items-center justify-between gap-3">
                     <ThemeToggle size="sm" />
-                    <button
-                        onClick={onLogout}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: 6,
-                            padding: '5px 11px',
-                            background: 'transparent',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-full)',
-                            fontSize: '0.8rem', fontWeight: 600,
-                            color: 'var(--text-muted)',
-                            cursor: 'pointer',
-                            transition: 'all 150ms ease',
-                            fontFamily: 'var(--font-sans)',
-                        }}
-                        onMouseOver={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.borderColor = 'var(--red-border)'; }}
-                        onMouseOut={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)'; }}
-                    >
+                    <button type="button" onClick={onLogout} className="btn btn-secondary btn-sm">
                         <LogOut size={13} />
                         Sign out
                     </button>
@@ -184,12 +199,59 @@ export function Sidebar({ profile, onLogout }: SidebarProps) {
 }
 
 export function PageLayout({ children, profile, onLogout }: { children: React.ReactNode; profile: Profile | null; onLogout: () => void }) {
+    const location = useLocation();
+    const { sidebarOpen, setSidebar } = useUIStore();
+
+    useEffect(() => {
+        setSidebar(false);
+    }, [location.pathname, setSidebar]);
+
     return (
-        <div style={{ display: 'flex', height: '100vh', background: 'var(--bg-base)', overflow: 'hidden' }}>
-            <Sidebar profile={profile} onLogout={onLogout} />
-            <main style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
-                <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
-            </main>
+        <div className="shell-layout">
+            <button
+                type="button"
+                aria-label="Close navigation"
+                className={cn('shell-sidebar-backdrop', sidebarOpen && 'open')}
+                onClick={() => setSidebar(false)}
+            />
+
+            <aside className={cn('shell-sidebar', sidebarOpen && 'open')}>
+                <Sidebar
+                    profile={profile}
+                    onLogout={onLogout}
+                    onNavigate={() => setSidebar(false)}
+                    onClose={() => setSidebar(false)}
+                />
+            </aside>
+
+            <div className="shell-main">
+                <div className="shell-mobile-bar">
+                    <button
+                        type="button"
+                        className="btn btn-secondary btn-icon"
+                        onClick={() => setSidebar(true)}
+                        aria-label="Open navigation"
+                    >
+                        <Menu size={16} />
+                    </button>
+
+                    <div className="flex flex-1 items-center gap-3 min-w-0">
+                        <div className="shell-brand__logo h-10 w-10 rounded-xl">
+                            <Route size={18} />
+                        </div>
+                        <div className="min-w-0">
+                            <div className="truncate text-[0.68rem] font-black uppercase tracking-[0.16em] text-[var(--brand)]">GovTech India</div>
+                            <div className="truncate text-sm font-black text-[var(--text-primary)]">RoadTwin Grid</div>
+                        </div>
+                    </div>
+
+                    <ThemeToggle size="sm" />
+                </div>
+
+                <main className="shell-main__inner">
+                    <div style={{ position: 'relative', zIndex: 1, minWidth: 0 }}>{children}</div>
+                </main>
+            </div>
         </div>
     );
 }

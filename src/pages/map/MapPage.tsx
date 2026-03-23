@@ -1,10 +1,16 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
 import { InfrastructureMap } from '../../components/map/InfrastructureMap';
 import 'leaflet/dist/leaflet.css'
 import type { RoadSegment, Defect, UtilityInfrastructure, RoadImageSurvey, UtilityOrganization } from '../../types'
 import { Badge } from '../../components/ui'
 import { Loader2, Layers, Map as MapIcon } from 'lucide-react';
+import {
+    listDefectsData,
+    listRoadSegmentsData,
+    listRoadSurveysData,
+    listUtilityInfrastructureData,
+    listUtilityOrganizationsData
+} from '../../lib/supabaseData';
 
 type MapLayer = 'health' | 'surveys' | 'defects' | 'utilities' | 'ai_digging';
 
@@ -26,29 +32,33 @@ export function MapPage() {
         setLoading(true);
         try {
             const [
-                { data: r },
-                { data: d },
-                { data: s },
-                { data: u },
-                { data: orgs }
+                nextRoads,
+                nextDefects,
+                nextSurveys,
+                nextUtilities,
+                nextOrgs
             ] = await Promise.all([
-                supabase.from('road_segments').select('*'),
-                supabase.from('defects').select('*'),
-                supabase.from('road_image_surveys').select('*'),
-                supabase.from('utility_infrastructure').select('*'),
-                supabase.from('utility_organizations').select('*')
+                listRoadSegmentsData(),
+                listDefectsData(),
+                listRoadSurveysData(),
+                listUtilityInfrastructureData(),
+                listUtilityOrganizationsData()
             ]);
 
-            if (r) setRoads(r);
-            if (d) setDefects(d);
-            if (s) setSurveys(s);
-            if (u) setUtilities(u);
-            if (orgs) {
-                setOrganizations(orgs);
-                setSelectedOrgIds(new Set(orgs.map(o => o.id)));
-            }
+            setRoads(nextRoads);
+            setDefects(nextDefects);
+            setSurveys(nextSurveys);
+            setUtilities(nextUtilities);
+            setOrganizations(nextOrgs);
+            setSelectedOrgIds(new Set(nextOrgs.map(o => o.id)));
         } catch (err) {
             console.error('Failed to fetch map data:', err);
+            setRoads([]);
+            setDefects([]);
+            setSurveys([]);
+            setUtilities([]);
+            setOrganizations([]);
+            setSelectedOrgIds(new Set());
         } finally {
             setLoading(false);
         }
@@ -72,7 +82,7 @@ export function MapPage() {
 
     if (loading) {
         return (
-            <div className="page-container" style={{ height: 'calc(100vh - 100px)', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="page-container" style={{ minHeight: '50vh', alignItems: 'center', justifyContent: 'center' }}>
                 <Loader2 className="animate-spin" size={40} style={{ color: 'var(--brand)' }} />
                 <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' as const }}>Loading map data...</div>
             </div>
@@ -80,8 +90,8 @@ export function MapPage() {
     }
 
     return (
-        <div className="page-container" style={{ height: '100vh', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="page-container" style={{ minHeight: '100%', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
                 <div>
                     <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                         Infrastructure Map <MapIcon size={22} style={{ color: 'var(--blue)' }} />
@@ -99,7 +109,7 @@ export function MapPage() {
                 </div>
             </div>
 
-            <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+            <div style={{ flex: 1, minHeight: 'min(68dvh, 760px)', height: 'min(68dvh, 760px)', position: 'relative' }}>
                 <InfrastructureMap
                     roads={roads}
                     defects={defects}
@@ -115,7 +125,7 @@ export function MapPage() {
                     position: 'absolute', bottom: 24, left: 24, zIndex: 1000,
                     background: 'var(--bg-surface)', border: '1px solid var(--border)',
                     padding: 'var(--space-4)', borderRadius: 'var(--radius-md)',
-                    boxShadow: 'var(--shadow-lg)', width: 220,
+                    boxShadow: 'var(--shadow-lg)', width: 'min(220px, calc(100% - 48px))',
                 }}>
                     <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 'var(--space-3)', paddingBottom: 'var(--space-2)', borderBottom: '1px solid var(--border)' }}>
                         Pipeline Legend
@@ -142,7 +152,7 @@ export function MapPage() {
                         position: 'absolute', top: 16, left: 16, zIndex: 1000,
                         background: 'var(--bg-surface)', border: '1px solid var(--border)',
                         padding: 'var(--space-4)', borderRadius: 'var(--radius-md)',
-                        boxShadow: 'var(--shadow-lg)', width: 200,
+                        boxShadow: 'var(--shadow-lg)', width: 'min(200px, calc(100% - 32px))',
                     }}>
                         <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.06em', marginBottom: 'var(--space-3)' }}>
                             Pipeline Filtering

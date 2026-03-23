@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ScoreRing } from '../../components/ui/ScoreRing';
 import { Card, Badge, Button } from '../../components/ui';
 import {
@@ -13,15 +12,36 @@ import {
     Shield,
     ArrowLeft,
     Clock,
-    FileText
+    FileText,
+    ClipboardList,
+    TrafficCone,
+    Camera
 } from 'lucide-react';
 import { RoadSegment, HealthPrediction } from '../../types';
 import { HealthTrendChart } from '../../components/charts/HealthTrendChart';
+import {
+    listFieldCaptureDraftsData,
+    listFleetCameraEventsData,
+    listHealthPredictionsData,
+    listRoadSegmentsData,
+    listRoadSurveysData,
+    listRoadTwinSnapshotsData,
+    listTrafficAdvisoriesData,
+    listWorkOrdersData
+} from '../../lib/supabaseData';
+import type { FieldCaptureDraft, FleetCameraEvent, RoadImageSurvey, TrafficAdvisory, WorkOrder } from '../../types';
 
 export function RoadPassport() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [road, setRoad] = useState<RoadSegment | null>(null);
     const [prediction, setPrediction] = useState<HealthPrediction | null>(null);
+    const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+    const [advisories, setAdvisories] = useState<TrafficAdvisory[]>([]);
+    const [surveys, setSurveys] = useState<RoadImageSurvey[]>([]);
+    const [fieldDrafts, setFieldDrafts] = useState<FieldCaptureDraft[]>([]);
+    const [fleetEvents, setFleetEvents] = useState<FleetCameraEvent[]>([]);
+    const [twinTimeline, setTwinTimeline] = useState<{ year: number; health_score: number; defect_count: number; visible_utilities: number; active_workzones: number; note: string; }[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -29,17 +49,62 @@ export function RoadPassport() {
             if (!id) return;
             setIsLoading(true);
 
-            const [roadRes, predRes] = await Promise.all([
-                supabase.from('road_segments').select('*').eq('id', id).single(),
-                supabase.from('health_predictions').select('*').eq('road_segment_id', id).order('created_at', { ascending: false }).limit(1).maybeSingle()
+            const [
+                roads,
+                predictions,
+                nextWorkOrders,
+                nextAdvisories,
+                nextSurveys,
+                nextFieldDrafts,
+                nextFleetEvents,
+                twinRows
+            ] = await Promise.all([
+                listRoadSegmentsData(),
+                listHealthPredictionsData(),
+                listWorkOrdersData(),
+                listTrafficAdvisoriesData(),
+                listRoadSurveysData(),
+                listFieldCaptureDraftsData(),
+                listFleetCameraEventsData(),
+                listRoadTwinSnapshotsData()
             ]);
 
-            if (roadRes.data) setRoad(roadRes.data);
-            if (predRes.data) setPrediction(predRes.data);
+            const nextRoad = roads.find((item) => item.id === id) || null;
+            setRoad(nextRoad);
+            setPrediction(predictions.find((item) => item.road_segment_id === id) || null);
+
+            if (nextRoad) {
+                setWorkOrders(nextWorkOrders.filter((item) => item.road_name === nextRoad.name));
+                setAdvisories(nextAdvisories.filter((item) => item.road_name === nextRoad.name));
+                setSurveys(nextSurveys.filter((item) => item.road_name === nextRoad.name));
+                setFieldDrafts(nextFieldDrafts.filter((item) => item.road_name === nextRoad.name));
+                setFleetEvents(nextFleetEvents.filter((item) => item.road_name === nextRoad.name));
+                setTwinTimeline(
+                    twinRows
+                        .filter((row) => row.road_segment_id === nextRoad.id)
+                        .map((row) => ({
+                            year: row.snapshot_year,
+                            health_score: row.health_score,
+                            defect_count: row.defect_count,
+                            visible_utilities: row.visible_utilities,
+                            active_workzones: row.active_workzones,
+                            note: row.note || 'Twin snapshot recorded.'
+                        }))
+                        .sort((a, b) => a.year - b.year)
+                );
+            } else {
+                setWorkOrders([]);
+                setAdvisories([]);
+                setSurveys([]);
+                setFieldDrafts([]);
+                setFleetEvents([]);
+                setTwinTimeline([]);
+            }
+
             setIsLoading(false);
         };
 
-        fetchData();
+        void fetchData();
     }, [id]);
 
     if (isLoading) return <div className="p-20 flex justify-center"><div className="spinner w-8 h-8" /></div>;
@@ -61,6 +126,12 @@ export function RoadPassport() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
+                    <Button variant="ghost" onClick={() => navigate('/twin')}>
+                        <Construction size={16} /> Open Digital Twin
+                    </Button>
+                    <Button variant="ghost" onClick={() => navigate('/work-orders')}>
+                        <ClipboardList size={16} /> Work Orders
+                    </Button>
                     <Button variant="secondary" onClick={() => window.print()}><FileText size={16} /> Export Passport</Button>
                 </div>
             </div>
@@ -131,6 +202,25 @@ export function RoadPassport() {
                         </Card>
                     </div>
 
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <Card className="bg-[var(--bg-hover)] border-[var(--border)] p-5">
+                            <div className="text-[8px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-2">Active Work Orders</div>
+                            <div className="text-2xl font-black text-[var(--brand)]">{workOrders.filter((item) => item.status !== 'completed').length}</div>
+                        </Card>
+                        <Card className="bg-[var(--bg-hover)] border-[var(--border)] p-5">
+                            <div className="text-[8px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-2">Traffic Advisories</div>
+                            <div className="text-2xl font-black text-[var(--yellow)]">{advisories.length}</div>
+                        </Card>
+                        <Card className="bg-[var(--bg-hover)] border-[var(--border)] p-5">
+                            <div className="text-[8px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-2">Field Captures</div>
+                            <div className="text-2xl font-black text-[var(--green)]">{fieldDrafts.length}</div>
+                        </Card>
+                        <Card className="bg-[var(--bg-hover)] border-[var(--border)] p-5">
+                            <div className="text-[8px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-2">Fleet Events</div>
+                            <div className="text-2xl font-black text-[var(--blue)]">{fleetEvents.length}</div>
+                        </Card>
+                    </div>
+
                     <Card className="bg-[var(--bg-hover)] border-[var(--border)] p-8 h-[300px]">
                         <div className="flex items-center justify-between mb-8">
                             <div className="section-title !m-0">Structural Integrity Trend</div>
@@ -165,6 +255,89 @@ export function RoadPassport() {
                                     <div className="text-[9px] font-black text-[var(--blue)] uppercase tracking-widest leading-none">Estimated Budget</div>
                                     <div className="text-lg font-black text-[var(--text-primary)]">₹{(prediction?.budget_estimate_inr || 0).toLocaleString()}</div>
                                 </div>
+                            </Card>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-6">
+                            <div className="section-title">Operational Integration</div>
+                            <Card className="bg-[var(--bg-hover)] border-[var(--border)] p-6 space-y-4">
+                                <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">
+                                    <ClipboardList size={14} className="text-[var(--brand)]" /> Work Orders
+                                </div>
+                                {workOrders.length > 0 ? workOrders.slice(0, 3).map((order) => (
+                                    <div key={order.id} className="p-4 rounded-xl bg-[var(--bg-panel)] border border-[var(--border)]">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="text-[10px] font-black text-[var(--text-primary)] uppercase tracking-widest">{order.order_number}</div>
+                                            <Badge variant={order.status === 'completed' ? 'success' : order.status === 'in_progress' ? 'warning' : 'info'}>{order.status}</Badge>
+                                        </div>
+                                        <div className="text-xs text-[var(--text-secondary)] mt-3">{order.title}</div>
+                                    </div>
+                                )) : (
+                                    <div className="text-xs text-[var(--text-muted)]">No linked work orders yet.</div>
+                                )}
+                            </Card>
+
+                            <Card className="bg-[var(--bg-hover)] border-[var(--border)] p-6 space-y-4">
+                                <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">
+                                    <TrafficCone size={14} className="text-[var(--yellow)]" /> Traffic Impact
+                                </div>
+                                {advisories.length > 0 ? advisories.slice(0, 2).map((advisory) => (
+                                    <div key={advisory.id} className="p-4 rounded-xl bg-[var(--bg-panel)] border border-[var(--border)]">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="text-[10px] font-black text-[var(--text-primary)] uppercase tracking-widest">Score {advisory.disruption_score}</div>
+                                            <Badge variant={advisory.status === 'cleared' ? 'success' : advisory.status === 'active' ? 'warning' : 'info'}>{advisory.status}</Badge>
+                                        </div>
+                                        <div className="text-xs text-[var(--text-secondary)] mt-3">{advisory.detour}</div>
+                                    </div>
+                                )) : (
+                                    <div className="text-xs text-[var(--text-muted)]">No active traffic advisory linked to this road.</div>
+                                )}
+                            </Card>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="section-title">Field & Twin Evidence</div>
+                            <Card className="bg-[var(--bg-hover)] border-[var(--border)] p-6 space-y-4">
+                                <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">
+                                    <Camera size={14} className="text-[var(--blue)]" /> Survey + Field Queue
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="p-4 rounded-xl bg-[var(--bg-panel)] border border-[var(--border)]">
+                                        <div className="text-[8px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-2">Synced Surveys</div>
+                                        <div className="text-lg font-black text-[var(--text-primary)]">{surveys.length}</div>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-[var(--bg-panel)] border border-[var(--border)]">
+                                        <div className="text-[8px] font-black text-[var(--text-muted)] uppercase tracking-widest mb-2">Field Drafts</div>
+                                        <div className="text-lg font-black text-[var(--text-primary)]">{fieldDrafts.length}</div>
+                                    </div>
+                                </div>
+                                {fieldDrafts.slice(0, 2).map((draft) => (
+                                    <div key={draft.id} className="p-4 rounded-xl bg-[var(--bg-panel)] border border-[var(--border)]">
+                                        <div className="text-[10px] font-black text-[var(--text-primary)] uppercase tracking-widest">{draft.workflow.replace(/_/g, ' ')}</div>
+                                        <div className="text-xs text-[var(--text-secondary)] mt-3">{draft.summary}</div>
+                                    </div>
+                                ))}
+                            </Card>
+
+                            <Card className="bg-[var(--bg-hover)] border-[var(--border)] p-6 space-y-4">
+                                <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-muted)] uppercase tracking-widest">
+                                    <Activity size={14} className="text-[var(--green)]" /> Twin Timeline
+                                </div>
+                                {twinTimeline.length > 0 ? twinTimeline.map((snapshot) => (
+                                    <div key={snapshot.year} className="p-4 rounded-xl bg-[var(--bg-panel)] border border-[var(--border)]">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="text-[10px] font-black text-[var(--text-primary)] uppercase tracking-widest">{snapshot.year}</div>
+                                            <Badge variant={snapshot.health_score > 70 ? 'success' : snapshot.health_score > 50 ? 'warning' : 'error'}>
+                                                {snapshot.health_score}
+                                            </Badge>
+                                        </div>
+                                        <div className="text-xs text-[var(--text-secondary)] mt-3">{snapshot.note}</div>
+                                    </div>
+                                )) : (
+                                    <div className="text-xs text-[var(--text-muted)]">Twin snapshots will appear here once recorded.</div>
+                                )}
                             </Card>
                         </div>
                     </div>

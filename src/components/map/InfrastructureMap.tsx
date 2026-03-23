@@ -210,7 +210,7 @@ export function InfrastructureMap({
                                                 </div>
                                                 <div>
                                                     <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Depth</div>
-                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', fontWeight: 600, color: 'var(--blue)' }}>{utility.depth_avg_meters}m</div>
+                                                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', fontWeight: 600, color: 'var(--blue)' }}>{utility.depth_avg_m}m</div>
                                                 </div>
                                                 <div>
                                                     <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Est. Age</div>

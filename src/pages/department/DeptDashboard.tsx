@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Card, Badge } from '../../components/ui';
+import { Card, Badge, Button } from '../../components/ui';
+import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import {
     Zap,
     AlertTriangle,
@@ -10,60 +12,135 @@ import {
     Clock,
     Shield,
     Database,
-    HardHat
+    HardHat,
+    ClipboardList,
+    TrafficCone,
+    Siren
 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css'
 import type { RoadSegment, Defect, UtilityInfrastructure, RoadImageSurvey, Complaint, UtilityOrganization, ExcavationPermit } from '../../types'
 import { InfrastructureMap } from '../../components/map/InfrastructureMap';
+import {
+    listComplaintsData,
+    listEmergencyIncidentsData,
+    listExcavationPermitsData,
+    listPolicyAlertsData,
+    listTrafficAdvisoriesData,
+    listUtilityInfrastructureData,
+    listUtilityOrganizationsData,
+    listWorkOrdersData
+} from '../../lib/supabaseData';
 
 export function DeptDashboard() {
+    const navigate = useNavigate();
     const [org, setOrg] = useState<UtilityOrganization | null>(null);
     const [infra, setInfra] = useState<UtilityInfrastructure[]>([]);
     const [complaints, setComplaints] = useState<Complaint[]>([]);
     const [permits, setPermits] = useState<ExcavationPermit[]>([]);
+    const [workOrders, setWorkOrders] = useState<any[]>([]);
+    const [emergencies, setEmergencies] = useState<any[]>([]);
+    const [trafficAdvisories, setTrafficAdvisories] = useState<any[]>([]);
+    const [policyAlerts, setPolicyAlerts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const fetchDeptData = async () => {
             setLoading(true);
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                const [allOrgs, allInfra, allComplaints, allPermits] = await Promise.all([
+                    listUtilityOrganizationsData(),
+                    listUtilityInfrastructureData(),
+                    listComplaintsData(),
+                    listExcavationPermitsData()
+                ]);
+                const defaultOrg = allOrgs[0] || null;
 
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single();
+                if (!user) {
+                    if (defaultOrg) {
+                        setOrg(defaultOrg);
+                        setInfra(allInfra.filter((item) => item.utility_org_id === defaultOrg.id));
+                        setComplaints(allComplaints.filter((complaint) => complaint.assigned_org_id === defaultOrg.id));
+                        setPermits(allPermits.filter((permit) => permit.organization === defaultOrg.code));
+                    } else {
+                        setOrg(null);
+                        setInfra([]);
+                        setComplaints([]);
+                        setPermits([]);
+                    }
+                    setLoading(false);
+                    return;
+                }
 
-            if (profile?.department) {
-                const { data: orgData } = await supabase
-                    .from('utility_organizations')
+                const { data: profile } = await supabase
+                    .from('profiles')
                     .select('*')
-                    .eq('code', profile.department)
+                    .eq('id', user.id)
                     .single();
 
-                if (orgData) {
-                    setOrg(orgData);
+                const activeOrg = allOrgs.find((item) => item.code === (profile?.department || defaultOrg?.code)) || defaultOrg;
+                setOrg(activeOrg);
 
-                    const [infraRes, complaintsRes, permitsRes] = await Promise.all([
-                        supabase.from('utility_infrastructure').select('*').eq('utility_org_id', orgData.id),
-                        supabase.from('complaints').select('*').eq('assigned_org_id', orgData.id),
-                        supabase.from('excavation_permits').select('*').eq('organization', orgData.code)
-                    ]);
-
-                    if (infraRes.data) setInfra(infraRes.data as UtilityInfrastructure[]);
-                    if (complaintsRes.data) setComplaints(complaintsRes.data as Complaint[]);
-                    if (permitsRes.data) setPermits(permitsRes.data as ExcavationPermit[]);
+                if (activeOrg) {
+                    setInfra(allInfra.filter((item) => item.utility_org_id === activeOrg.id));
+                    setComplaints(allComplaints.filter((complaint) => complaint.assigned_org_id === activeOrg.id));
+                    setPermits(allPermits.filter((permit) => permit.organization === activeOrg.code));
+                } else {
+                    setInfra([]);
+                    setComplaints([]);
+                    setPermits([]);
                 }
+            } catch {
+                setOrg(null);
+                setInfra([]);
+                setComplaints([]);
+                setPermits([]);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         };
 
         fetchDeptData();
     }, []);
 
-    if (!org) return (
-        <div className="h-screen flex items-center justify-center text-[var(--text-muted)] font-bold uppercase tracking-widest text-xs">
+    useEffect(() => {
+        const loadOpsData = async () => {
+            if (!org) {
+                setWorkOrders([]);
+                setEmergencies([]);
+                setTrafficAdvisories([]);
+                setPolicyAlerts([]);
+                return;
+            }
+            const [orders, incidentData, advisoryData, alertData] = await Promise.all([
+                listWorkOrdersData(),
+                listEmergencyIncidentsData(),
+                listTrafficAdvisoriesData(),
+                listPolicyAlertsData()
+            ]);
+
+            setWorkOrders(orders.filter((order) =>
+        order.assigned_department.includes(org.code) ||
+        order.assigned_department.includes(org.name.split(' ')[0]) ||
+        order.road_name === infra[0]?.road_name
+            ));
+            setEmergencies(incidentData.filter((incident) =>
+                incident.notified_departments.some((department) => department.toLowerCase().includes(org.name.split(' ')[0].toLowerCase()) || department.toLowerCase().includes(org.code.toLowerCase()))
+            ));
+            setTrafficAdvisories(advisoryData.filter((item) =>
+                permits.some((permit) => permit.permit_number === item.permit_number)
+            ));
+            setPolicyAlerts(alertData.filter((alert) =>
+                permits.some((permit) => permit.permit_number === alert.permit_number) ||
+                infra.some((asset) => asset.road_name === alert.road_name)
+            ));
+        };
+
+        void loadOpsData();
+    }, [org, infra, permits]);
+
+    if (loading || !org) return (
+        <div className="min-h-screen flex items-center justify-center text-[var(--text-muted)] font-bold uppercase tracking-widest text-xs">
             Initializing Agency Command...
         </div>
     );
@@ -71,12 +148,13 @@ export function DeptDashboard() {
     const kpis = [
         { label: 'Active Assets', value: infra.length, sub: 'Infrastructure Units', icon: Database, color: org.color_hex },
         { label: 'Pending Tickets', value: complaints.length, sub: 'Assigned Complaints', icon: AlertTriangle, color: '#ff3d5a' },
-        { label: 'Approved Permits', value: permits.filter(p => p.status === 'approved').length, sub: 'Authorized Works', icon: HardHat, color: '#39d353' },
-        { label: 'Safety Index', value: '94%', sub: 'NCT Compliance', icon: Shield, color: '#3b82f6' },
+        { label: 'Work Orders', value: workOrders.filter((item) => item.status !== 'completed').length, sub: 'Dispatch Queue', icon: ClipboardList, color: '#f59e0b' },
+        { label: 'Traffic Alerts', value: trafficAdvisories.filter((item) => item.status !== 'cleared').length, sub: 'Live Corridors', icon: TrafficCone, color: '#3b82f6' },
+        { label: 'Policy Alerts', value: policyAlerts.length, sub: 'Governance Signals', icon: Shield, color: '#7c3aed' },
     ];
 
     return (
-        <div className="p-8 space-y-8 min-h-screen">
+        <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 min-h-screen">
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="flex items-center gap-6">
@@ -90,14 +168,26 @@ export function DeptDashboard() {
                         <p className="text-[var(--text-muted)] text-[10px] font-bold uppercase tracking-widest mt-1">Delhi Municipal Infrastructure Node • {org.type} Division</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3 text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest border border-[var(--border)] bg-[var(--bg-panel)] px-4 py-2 rounded-xl">
-                    <Clock size={14} className="text-[var(--blue)]" />
-                    Operational Since: 09:00 AM IST
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/work-orders')}>
+                        Work Orders
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/traffic')}>
+                        Traffic
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/audit')}>
+                        Audit
+                    </Button>
+                    <ThemeToggle size="sm" />
+                    <div className="flex items-center gap-3 text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest border border-[var(--border)] bg-[var(--bg-panel)] px-4 py-2 rounded-xl">
+                        <Clock size={14} className="text-[var(--blue)]" />
+                        Operational Since: 09:00 AM IST
+                    </div>
                 </div>
             </div>
 
             {/* KPI Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6">
                 {kpis.map(kpi => (
                     <Card key={kpi.label} className="p-6 relative group border-[var(--border)] hover:border-[var(--border-strong)] transition-all duration-300">
                         <div className="absolute top-4 right-4 text-[var(--text-disabled)] group-hover:text-[var(--text-disabled)] transition-colors">
@@ -117,7 +207,7 @@ export function DeptDashboard() {
             <div className="grid lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-8">
                     {/* Specialized Map for Department */}
-                    <Card className="h-[600px] p-2 relative group overflow-hidden border-[var(--border)]">
+                    <Card className="h-[360px] sm:h-[460px] lg:h-[600px] p-2 relative group overflow-hidden border-[var(--border)]">
                         <div className="absolute top-6 left-6 z-[1000] flex flex-col gap-2">
                             <div className="px-3 py-1.5 rounded-lg bg-[var(--bg-panel)]/90 border border-[var(--border)] backdrop-blur-md flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: org.color_hex }}></div>
@@ -166,6 +256,69 @@ export function DeptDashboard() {
                                         <div className="w-8 h-8 rounded-lg bg-[var(--blue-bg)] flex items-center justify-center text-[var(--blue)] group-hover:bg-[var(--brand-hover)] group-hover:text-[var(--text-primary)] transition-all">
                                             <ArrowUpRight size={14} />
                                         </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {workOrders.slice(0, 2).map((order) => (
+                                <div key={order.id} className="p-5 rounded-2xl bg-[var(--bg-panel)]/60 border border-[var(--border)] hover:border-[var(--border-strong)] transition-all">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <Badge variant={order.priority === 'critical' ? 'error' : 'warning'}>{order.priority}</Badge>
+                                        <div className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest">
+                                            {order.status}
+                                        </div>
+                                    </div>
+                                    <div className="text-[var(--text-primary)] text-xs font-medium leading-relaxed mb-4">{order.title}</div>
+                                    <div className="pt-4 border-t border-[var(--border)] flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <ClipboardList size={10} className="text-[var(--text-muted)]" />
+                                            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-tighter">{order.order_number}</span>
+                                        </div>
+                                        <div className="w-8 h-8 rounded-lg bg-[var(--blue-bg)] flex items-center justify-center text-[var(--blue)]">
+                                            <ArrowUpRight size={14} />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {emergencies.slice(0, 1).map((incident) => (
+                                <div key={incident.id} className="p-5 rounded-2xl bg-[var(--red-bg)]/40 border border-[var(--red-border)]">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <Badge variant="error">Emergency</Badge>
+                                        <div className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest">
+                                            {incident.protocol}
+                                        </div>
+                                    </div>
+                                    <div className="text-[var(--text-primary)] text-xs font-medium leading-relaxed mb-4">{incident.summary}</div>
+                                    <div className="pt-4 border-t border-[var(--border)] flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Siren size={10} className="text-[var(--red)]" />
+                                            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-tighter">{incident.road_name}</span>
+                                        </div>
+                                        <div className="w-8 h-8 rounded-lg bg-[var(--blue-bg)] flex items-center justify-center text-[var(--blue)]">
+                                            <ArrowUpRight size={14} />
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {policyAlerts.slice(0, 2).map((alert) => (
+                                <div key={alert.id} className="p-5 rounded-2xl bg-[var(--bg-panel)]/60 border border-[var(--border)] hover:border-[var(--border-strong)] transition-all">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <Badge variant={alert.severity === 'critical' ? 'error' : 'warning'}>{alert.severity}</Badge>
+                                        <div className="text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-widest">
+                                            policy
+                                        </div>
+                                    </div>
+                                    <div className="text-[var(--text-primary)] text-xs font-medium leading-relaxed mb-4">{alert.title}</div>
+                                    <div className="pt-4 border-t border-[var(--border)] flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Shield size={10} className="text-[var(--text-muted)]" />
+                                            <span className="text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-tighter">{alert.owner}</span>
+                                        </div>
+                                        <button type="button" onClick={() => navigate('/audit')} className="w-8 h-8 rounded-lg bg-[var(--blue-bg)] flex items-center justify-center text-[var(--blue)]">
+                                            <ArrowUpRight size={14} />
+                                        </button>
                                     </div>
                                 </div>
                             ))}
