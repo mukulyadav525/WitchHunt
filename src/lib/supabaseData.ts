@@ -20,6 +20,8 @@ import type {
     PermitActionAuditLog,
     PermitApprovalRecord,
     PolicyAlert,
+    PreDigChecklistItem,
+    PreDigClearanceRecord,
     PublicVerificationEvent,
     PublicWorksite,
     RoadImageSurvey,
@@ -38,6 +40,7 @@ import type {
 } from '../types';
 
 type TableName =
+    | 'app_settings'
     | 'ai_usage_logs'
     | 'citizen_completion_feedback'
     | 'citizen_champions'
@@ -56,6 +59,7 @@ type TableName =
     | 'payment_milestones'
     | 'permit_action_audit_logs'
     | 'permit_approval_records'
+    | 'pre_dig_clearances'
     | 'profiles'
     | 'public_verification_events'
     | 'public_worksites'
@@ -84,6 +88,125 @@ type RoadTwinSnapshotRow = {
     note: string | null;
     created_at: string;
 };
+
+type AppSettingRow = {
+    setting_key: string;
+    description?: string | null;
+    value: any;
+    updated_at?: string;
+};
+
+type GeoDefaults = {
+    default_city: string;
+    unassigned_ward_label: string;
+};
+
+type BrandingDefaults = {
+    supported_cities: string[];
+    department_node_label: string;
+    platform_name: string;
+    public_tracker_name: string;
+};
+
+type CoordinationDefaults = {
+    department: string;
+    fallback_road_name: string;
+    rationale: string;
+    recommended_window: string;
+    summary_window_label: string;
+    standard_emergency_protocol: string;
+    urgent_emergency_protocol: string;
+    notification_plan: string;
+};
+
+type WorkOrderDefaults = {
+    complaint: {
+        department: string;
+        crews: { critical: string; standard: string; };
+        due_hours: { critical: number; standard: number; };
+        estimated_cost_inr: { critical: number; standard: number; };
+        fallback_road_name: string;
+        fallback_title_suffix: string;
+    };
+    prediction: {
+        department: string;
+        crews: { critical: string; standard: string; };
+        due_hours: { critical: number; standard: number; };
+        default_budget_inr: number;
+    };
+    emergency: {
+        department: string;
+        crew: string;
+        due_hours: number;
+        estimated_cost_inr: { critical: number; high: number; };
+    };
+    signal: {
+        department: string;
+        crews: { critical: string; standard: string; };
+        due_hours: { critical: number; high: number; standard: number; };
+    };
+    fleet: {
+        department: string;
+        crews: { critical: string; standard: string; };
+        due_hours: { critical: number; standard: number; };
+        estimated_cost_inr: { critical: number; standard: number; };
+    };
+};
+
+type FieldSyncDefaults = {
+    survey: {
+        health_score: number;
+        condition: string;
+        confidence: number;
+    };
+    emergency: {
+        protocol_by_type: Record<NonNullable<FieldCaptureDraft['emergency_type']>, EmergencyIncident['protocol']>;
+        severity_by_type: Record<NonNullable<FieldCaptureDraft['emergency_type']>, EmergencyIncident['severity']>;
+        sla_minutes: Record<NonNullable<FieldCaptureDraft['emergency_type']>, number>;
+        radius_m: Record<NonNullable<FieldCaptureDraft['emergency_type']>, number>;
+        diversion_route: string;
+        nearest_utilities: string[];
+        notified_departments: string[];
+        checklist_owners: {
+            supervisor_review: string;
+            detour_notice_release: string;
+        };
+    };
+    notification: {
+        delay_minutes: number;
+        default_radius_m: number;
+        emergency_radius_m: number;
+        utility_audience: SmartNotification['audience'];
+        emergency_detour_text: string;
+    };
+};
+
+type PreDigDefaults = {
+    buffer_m: number;
+    gpr_trigger_gap_m: number;
+    risk_thresholds: {
+        critical: number;
+        high: number;
+        medium: number;
+    };
+    decision_owner: string;
+    required_actions: {
+        critical_conflict: string;
+        gpr: string;
+        field_marking: string;
+        approval_flag: string;
+        qr_board: string;
+        standard: string;
+    };
+    checklist_owners: {
+        conflict_review: string;
+        field_marking: string;
+        traffic_notice: string;
+        qr_board: string;
+    };
+};
+
+let appSettingsCache: Map<string, any> | null = null;
 
 function isUuid(value?: string | null) {
     return Boolean(value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value));
@@ -117,11 +240,60 @@ async function updateRow<T>(table: TableName, id: string, payload: Record<string
     return data as T;
 }
 
+async function getAppSettingsCache() {
+    if (appSettingsCache) {
+        return appSettingsCache;
+    }
+
+    const rows = await selectRows<AppSettingRow>('app_settings', 'setting_key', true);
+    appSettingsCache = new Map(rows.map((row) => [row.setting_key, row.value]));
+    return appSettingsCache;
+}
+
+async function getAppSettingData<T>(settingKey: string) {
+    const settings = await getAppSettingsCache();
+    if (!settings.has(settingKey)) {
+        throw new Error(`Missing required app setting: ${settingKey}`);
+    }
+
+    return settings.get(settingKey) as T;
+}
+
+export async function getGeoDefaultsData() {
+    return getAppSettingData<GeoDefaults>('geo_defaults');
+}
+
+export async function getBrandingDefaultsData() {
+    return getAppSettingData<BrandingDefaults>('branding_defaults');
+}
+
+export async function getCoordinationDefaultsData() {
+    return getAppSettingData<CoordinationDefaults>('coordination_defaults');
+}
+
+async function getWorkOrderDefaultsData() {
+    return getAppSettingData<WorkOrderDefaults>('work_order_defaults');
+}
+
+async function getFieldSyncDefaultsData() {
+    return getAppSettingData<FieldSyncDefaults>('field_sync_defaults');
+}
+
+export async function getPreDigDefaultsData() {
+    return getAppSettingData<PreDigDefaults>('pre_dig_defaults');
+}
+
+export async function resolveWardLabelData(ward?: string | null) {
+    const { unassigned_ward_label } = await getGeoDefaultsData();
+    return ward?.trim() || unassigned_ward_label;
+}
+
 async function resolveWardForRoad(roadName?: string | null, fallback?: string | null) {
     if (fallback) return fallback;
-    if (!roadName) return 'Ward not tagged';
+    const { unassigned_ward_label } = await getGeoDefaultsData();
+    if (!roadName) return unassigned_ward_label;
     const road = await selectSingleRow<RoadSegment>('road_segments', 'name', roadName);
-    return road?.ward || 'Ward not tagged';
+    return road?.ward || unassigned_ward_label;
 }
 
 function normalizeUtilityInfrastructureRecord(item: any): UtilityInfrastructure {
@@ -506,6 +678,262 @@ export async function savePermitApprovalRecordData(record: PermitApprovalRecord)
     return insertRow<PermitApprovalRecord>('permit_approval_records', payload);
 }
 
+function riskLevelFromScore(score: number, thresholds: PreDigDefaults['risk_thresholds']): PreDigClearanceRecord['risk_level'] {
+    if (score >= thresholds.critical) return 'critical';
+    if (score >= thresholds.high) return 'high';
+    if (score >= thresholds.medium) return 'medium';
+    return 'low';
+}
+
+function mergeChecklistItems(
+    derived: PreDigChecklistItem[],
+    saved: PreDigChecklistItem[] = []
+) {
+    return derived.map((item) => {
+        const savedItem = saved.find((candidate) => candidate.label === item.label) || null;
+        return savedItem
+            ? { ...item, done: savedItem.done, note: savedItem.note || item.note || null }
+            : item;
+    });
+}
+
+export async function listPreDigClearancesData() {
+    const [
+        permits,
+        approvals,
+        worksites,
+        roads,
+        utilities,
+        conflicts,
+        fieldDrafts,
+        twinRows,
+        savedRows,
+        defaults,
+        geoDefaults
+    ] = await Promise.all([
+        listExcavationPermitsData(),
+        listPermitApprovalsData(),
+        listPublicWorksitesData(),
+        listRoadSegmentsData(),
+        listUtilityInfrastructureData(),
+        listUtilityConflictZonesData(),
+        listFieldCaptureDraftsData(),
+        listRoadTwinSnapshotsData(),
+        selectRows<PreDigClearanceRecord>('pre_dig_clearances', 'updated_at', false),
+        getPreDigDefaultsData(),
+        getGeoDefaultsData()
+    ]);
+
+    const relevantPermits = permits.filter((permit) => permit.status !== 'completed' && permit.status !== 'rejected');
+
+    const clearances = relevantPermits.map((permit) => {
+        const roadName = permit.road_name || permit.location_description || permit.permit_number;
+        const road = roads.find((item) => item.id === permit.road_segment_id || item.name === roadName) || null;
+        const worksite = worksites.find((item) => item.permit_number === permit.permit_number) || null;
+        const approval = approvals.find((item) => item.permit_number === permit.permit_number) || null;
+        const roadUtilities = utilities.filter((item) => item.road_name === roadName && item.status !== 'abandoned');
+        const utilityIds = new Set(roadUtilities.map((item) => item.id));
+        const relatedConflicts = conflicts.filter((item) =>
+            Boolean(item.infra_id_1 && utilityIds.has(item.infra_id_1))
+            || Boolean(item.infra_id_2 && utilityIds.has(item.infra_id_2))
+        );
+        const conflictCount = relatedConflicts.length;
+        const criticalConflictCount = relatedConflicts.filter((item) => item.risk_level === 'critical').length;
+        const nearestUtilityDepth = roadUtilities.length
+            ? roadUtilities.reduce((min, item) => Math.min(min, item.depth_avg_m || Number.POSITIVE_INFINITY), Number.POSITIVE_INFINITY)
+            : null;
+        const safeMargin = nearestUtilityDepth !== null && Number.isFinite(nearestUtilityDepth)
+            ? Number((nearestUtilityDepth - permit.depth_m).toFixed(2))
+            : null;
+        const utilityTypes = Array.from(new Set(roadUtilities.map((item) => item.utility_type)));
+        const latestDraft = [...fieldDrafts]
+            .filter((draft) =>
+                draft.workflow === 'utility_marking'
+                && (draft.permit_number === permit.permit_number || draft.road_name === roadName)
+            )
+            .sort((a, b) => new Date(b.captured_at).getTime() - new Date(a.captured_at).getTime())[0] || null;
+        const latestTwin = road
+            ? [...twinRows]
+                .filter((row) => row.road_segment_id === road.id)
+                .sort((a, b) => b.snapshot_year - a.snapshot_year)[0] || null
+            : null;
+        const approvalFlagged = Boolean(approval?.status === 'flagged' || approval?.compliance_flags?.length);
+        const qrBoardReady = Boolean(approval?.qr_code_url || worksite?.permit_number);
+        const blockchainVerified = Boolean(approval?.blockchain_hash || worksite?.blockchain_hash);
+        const fieldMarkingStatus = latestDraft?.status || 'not_started';
+        const gprDepthTrigger = nearestUtilityDepth !== null && Number.isFinite(nearestUtilityDepth)
+            ? permit.depth_m >= nearestUtilityDepth - defaults.gpr_trigger_gap_m
+            : false;
+
+        let riskScore = 0;
+        riskScore += criticalConflictCount * 32;
+        riskScore += relatedConflicts.filter((item) => item.risk_level === 'high').length * 18;
+        riskScore += relatedConflicts.filter((item) => item.risk_level === 'medium').length * 10;
+        riskScore += relatedConflicts.filter((item) => item.risk_level === 'low').length * 4;
+        if (gprDepthTrigger) riskScore += 18;
+        if (fieldMarkingStatus !== 'synced') riskScore += 12;
+        if (approvalFlagged) riskScore += 14;
+        if (permit.urgency === 'emergency') riskScore += 8;
+        if (!qrBoardReady) riskScore += 5;
+        if ((road?.health_score || 100) < 45) riskScore += 7;
+        riskScore = Math.min(100, riskScore);
+
+        const riskLevel = riskLevelFromScore(riskScore, defaults.risk_thresholds);
+        const gprRequired = conflictCount > 0 && (criticalConflictCount > 0 || gprDepthTrigger);
+
+        const requiredActions = [
+            criticalConflictCount > 0 ? defaults.required_actions.critical_conflict : null,
+            gprRequired ? defaults.required_actions.gpr : null,
+            fieldMarkingStatus !== 'synced' ? defaults.required_actions.field_marking : null,
+            approvalFlagged ? defaults.required_actions.approval_flag : null,
+            !qrBoardReady ? defaults.required_actions.qr_board : null
+        ].filter(Boolean) as string[];
+
+        if (requiredActions.length === 0) {
+            requiredActions.push(defaults.required_actions.standard);
+        }
+
+        const derivedChecklist: PreDigChecklistItem[] = [
+            {
+                id: `check-conflict-${permit.id}`,
+                label: 'Underground conflict review',
+                owner: defaults.checklist_owners.conflict_review,
+                done: conflictCount === 0 || riskLevel === 'low',
+                note: conflictCount > 0 ? `${conflictCount} mapped utility conflict zone(s) need review.` : 'No mapped conflicts on this corridor.'
+            },
+            {
+                id: `check-field-${permit.id}`,
+                label: 'Field utility marking synced',
+                owner: defaults.checklist_owners.field_marking,
+                done: fieldMarkingStatus === 'synced',
+                note: latestDraft?.summary || 'No utility-marking capture synced yet.'
+            },
+            {
+                id: `check-traffic-${permit.id}`,
+                label: 'Traffic and barricading notice prepared',
+                owner: defaults.checklist_owners.traffic_notice,
+                done: Boolean(worksite?.detour),
+                note: worksite?.detour || 'Traffic notice still needs corridor confirmation.'
+            },
+            {
+                id: `check-qr-${permit.id}`,
+                label: 'QR board and public verification link ready',
+                owner: defaults.checklist_owners.qr_board,
+                done: qrBoardReady && blockchainVerified,
+                note: qrBoardReady ? 'QR/public verification record is present.' : 'QR board still pending publication.'
+            }
+        ];
+
+        const derivedStatus: PreDigClearanceRecord['status'] = criticalConflictCount > 0 && fieldMarkingStatus !== 'synced'
+            ? 'blocked'
+            : riskScore >= defaults.risk_thresholds.critical
+                ? 'blocked'
+                : gprRequired
+                    ? 'gpr_required'
+                    : riskScore >= defaults.risk_thresholds.medium || fieldMarkingStatus !== 'synced' || approvalFlagged
+                        ? 'restricted'
+                        : 'cleared';
+
+        const override = savedRows.find((item) => item.permit_number === permit.permit_number) || null;
+
+        return {
+            id: override?.id || `clearance-${permit.permit_number.toLowerCase()}`,
+            permit_id: permit.id,
+            permit_number: permit.permit_number,
+            road_name: roadName,
+            ward: road?.ward || worksite?.ward || geoDefaults.unassigned_ward_label,
+            organization: permit.organization,
+            status: override?.status || derivedStatus,
+            risk_level: override?.risk_level || riskLevel,
+            risk_score: riskScore,
+            requested_depth_m: permit.depth_m,
+            nearest_utility_depth_m: nearestUtilityDepth && Number.isFinite(nearestUtilityDepth) ? Number(nearestUtilityDepth.toFixed(2)) : null,
+            safe_clearance_margin_m: safeMargin,
+            conflict_count: conflictCount,
+            critical_conflict_count: criticalConflictCount,
+            utility_types: utilityTypes,
+            required_actions: override?.required_actions?.length ? override.required_actions : requiredActions,
+            checklist: mergeChecklistItems(derivedChecklist, override?.checklist || []),
+            field_marking_status: fieldMarkingStatus,
+            latest_field_note: latestDraft?.summary || latestDraft?.voice_note_text || null,
+            ar_overlay_status: utilityTypes.length >= 2 ? 'ready' : utilityTypes.length === 1 ? 'limited' : 'not_ready',
+            gpr_required: gprRequired,
+            blockchain_verified: blockchainVerified,
+            qr_board_ready: qrBoardReady,
+            twin_snapshot_year: latestTwin?.snapshot_year || null,
+            twin_note: latestTwin?.note || null,
+            decision_owner: override?.decision_owner || defaults.decision_owner,
+            decision_note: override?.decision_note || (
+                derivedStatus === 'blocked'
+                    ? 'Permit should stay blocked until critical overlap and field marking issues are resolved.'
+                    : derivedStatus === 'gpr_required'
+                        ? 'Permit can move only after GPR or physical verification confirms the safe dig envelope.'
+                        : derivedStatus === 'restricted'
+                            ? 'Permit may proceed with hand-dig supervision, QR board deployment, and field oversight.'
+                            : 'Permit is ready for standard supervised excavation.'
+            ),
+            approved_at: override?.approved_at || null,
+            updated_at: override?.updated_at || new Date().toISOString()
+        } as PreDigClearanceRecord;
+    });
+
+    const statusRank: Record<PreDigClearanceRecord['status'], number> = {
+        blocked: 0,
+        gpr_required: 1,
+        restricted: 2,
+        cleared: 3
+    };
+
+    return clearances.sort((a, b) =>
+        statusRank[a.status] - statusRank[b.status]
+        || b.risk_score - a.risk_score
+        || new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
+}
+
+export async function savePreDigClearanceData(record: PreDigClearanceRecord) {
+    const payload = {
+        permit_id: record.permit_id || null,
+        permit_number: record.permit_number,
+        road_name: record.road_name,
+        ward: record.ward,
+        organization: record.organization,
+        status: record.status,
+        risk_level: record.risk_level,
+        risk_score: record.risk_score,
+        requested_depth_m: record.requested_depth_m,
+        nearest_utility_depth_m: record.nearest_utility_depth_m ?? null,
+        safe_clearance_margin_m: record.safe_clearance_margin_m ?? null,
+        conflict_count: record.conflict_count,
+        critical_conflict_count: record.critical_conflict_count,
+        utility_types: record.utility_types,
+        required_actions: record.required_actions,
+        checklist: record.checklist,
+        field_marking_status: record.field_marking_status,
+        latest_field_note: record.latest_field_note || null,
+        ar_overlay_status: record.ar_overlay_status,
+        gpr_required: record.gpr_required,
+        blockchain_verified: record.blockchain_verified,
+        qr_board_ready: record.qr_board_ready,
+        twin_snapshot_year: record.twin_snapshot_year ?? null,
+        twin_note: record.twin_note || null,
+        decision_owner: record.decision_owner,
+        decision_note: record.decision_note || null,
+        approved_at: record.approved_at || null
+    };
+
+    if (isUuid(record.id)) {
+        return updateRow<PreDigClearanceRecord>('pre_dig_clearances', record.id, payload);
+    }
+
+    const existing = await selectSingleRow<PreDigClearanceRecord>('pre_dig_clearances', 'permit_number', record.permit_number);
+    if (existing?.id) {
+        return updateRow<PreDigClearanceRecord>('pre_dig_clearances', existing.id, payload);
+    }
+
+    return insertRow<PreDigClearanceRecord>('pre_dig_clearances', payload);
+}
+
 export async function listPermitActionAuditLogsData() {
     return selectRows<PermitActionAuditLog>('permit_action_audit_logs', 'created_at', false);
 }
@@ -655,25 +1083,35 @@ export async function createWorkOrderFromComplaintData(complaint: Complaint) {
         return { order: existing, created: false as const };
     }
 
+    const defaults = await getWorkOrderDefaultsData();
+    const complaintDefaults = defaults.complaint;
+
     const priority: WorkOrder['priority'] = complaint.priority || ((complaint.urgency_score || 0) >= 5
         ? 'critical'
         : (complaint.urgency_score || 0) >= 4
             ? 'high'
             : 'medium');
+    const dueHours = priority === 'critical'
+        ? complaintDefaults.due_hours.critical
+        : complaintDefaults.due_hours.standard;
+    const estimatedCost = priority === 'critical'
+        ? complaintDefaults.estimated_cost_inr.critical
+        : complaintDefaults.estimated_cost_inr.standard;
+    const roadName = complaint.road_name || complaintDefaults.fallback_road_name;
 
     const order = await insertRow<WorkOrder>('work_orders', {
         order_number: nextWorkOrderNumber(),
-        title: `${complaint.road_name || 'Road corridor'} complaint response`,
-        road_name: complaint.road_name || 'Citizen-submitted location',
+        title: `${roadName} ${complaintDefaults.fallback_title_suffix}`,
+        road_name: roadName,
         ward: await resolveWardForRoad(complaint.road_name),
         source: 'complaint',
         source_id: complaint.id,
         priority,
         status: 'queued',
-        assigned_department: 'Road Infrastructure',
-        assigned_crew: priority === 'critical' ? 'Rapid Response Crew' : 'Crew Alpha',
-        due_by: new Date(Date.now() + (priority === 'critical' ? 8 : 24) * 60 * 60 * 1000).toISOString(),
-        estimated_cost_inr: priority === 'critical' ? 175000 : 85000,
+        assigned_department: complaintDefaults.department,
+        assigned_crew: priority === 'critical' ? complaintDefaults.crews.critical : complaintDefaults.crews.standard,
+        due_by: new Date(Date.now() + dueHours * 60 * 60 * 1000).toISOString(),
+        estimated_cost_inr: estimatedCost,
         bilingual_summary: {
             en: complaint.complaint_text,
             hi: `शिकायत आधारित कार्य आदेश: ${complaint.complaint_text}`
@@ -690,25 +1128,31 @@ export async function createWorkOrderFromPredictionData(road: RoadSegment, predi
         return { order: existing, created: false as const };
     }
 
+    const defaults = await getWorkOrderDefaultsData();
+    const predictionDefaults = defaults.prediction;
+
     const priority: WorkOrder['priority'] = prediction.health_score < 20
         ? 'critical'
         : prediction.health_score < 40
             ? 'high'
             : 'medium';
+    const dueHours = priority === 'critical'
+        ? predictionDefaults.due_hours.critical
+        : predictionDefaults.due_hours.standard;
 
     const order = await insertRow<WorkOrder>('work_orders', {
         order_number: nextWorkOrderNumber(),
         title: `${road.name} preventive repair ticket`,
         road_name: road.name,
-        ward: road.ward || 'Ward not tagged',
+        ward: await resolveWardForRoad(road.name, road.ward),
         source: 'prediction',
         source_id: prediction.id,
         priority,
         status: 'queued',
-        assigned_department: 'PWD Preventive Maintenance',
-        assigned_crew: priority === 'critical' ? 'Crew Delta' : 'Crew Bravo',
-        due_by: new Date(Date.now() + (priority === 'critical' ? 12 : 72) * 60 * 60 * 1000).toISOString(),
-        estimated_cost_inr: prediction.budget_estimate_inr || 125000,
+        assigned_department: predictionDefaults.department,
+        assigned_crew: priority === 'critical' ? predictionDefaults.crews.critical : predictionDefaults.crews.standard,
+        due_by: new Date(Date.now() + dueHours * 60 * 60 * 1000).toISOString(),
+        estimated_cost_inr: prediction.budget_estimate_inr || predictionDefaults.default_budget_inr,
         bilingual_summary: {
             en: prediction.recommendation,
             hi: `एआई पूर्वानुमान के आधार पर कार्य आदेश: ${prediction.recommendation}`
@@ -725,6 +1169,9 @@ export async function createWorkOrderFromEmergencyData(incident: EmergencyIncide
         return { order: existing, created: false as const };
     }
 
+    const defaults = await getWorkOrderDefaultsData();
+    const emergencyDefaults = defaults.emergency;
+
     const order = await insertRow<WorkOrder>('work_orders', {
         order_number: nextWorkOrderNumber(),
         title: `${incident.road_name} emergency restoration`,
@@ -734,10 +1181,12 @@ export async function createWorkOrderFromEmergencyData(incident: EmergencyIncide
         source_id: incident.id,
         priority: incident.severity === 'critical' ? 'critical' : 'high',
         status: 'queued',
-        assigned_department: 'Emergency Restoration Cell',
-        assigned_crew: 'Rapid Response Crew',
-        due_by: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-        estimated_cost_inr: incident.severity === 'critical' ? 180000 : 110000,
+        assigned_department: emergencyDefaults.department,
+        assigned_crew: emergencyDefaults.crew,
+        due_by: new Date(Date.now() + emergencyDefaults.due_hours * 60 * 60 * 1000).toISOString(),
+        estimated_cost_inr: incident.severity === 'critical'
+            ? emergencyDefaults.estimated_cost_inr.critical
+            : emergencyDefaults.estimated_cost_inr.high,
         bilingual_summary: {
             en: incident.summary,
             hi: `आपातकालीन बहाली कार्य आदेश: ${incident.summary}`
@@ -867,6 +1316,7 @@ export async function saveFleetCameraEventData(event: FleetCameraEvent) {
 }
 
 export async function listSignalFusionCasesData() {
+    const { unassigned_ward_label } = await getGeoDefaultsData();
     const [
         complaints,
         fleetEvents,
@@ -908,7 +1358,7 @@ export async function listSignalFusionCasesData() {
         const ward = worksites.find((item) => item.road_name === roadName)?.ward
             || roads.find((item) => item.name === roadName)?.ward
             || caseDrafts[0]?.ward
-            || 'Ward not tagged';
+            || unassigned_ward_label;
 
         const focusCounts = new Map<string, number>();
         caseComplaints.forEach((item) => focusCounts.set(item.defect_type || 'surface_damage', (focusCounts.get(item.defect_type || 'surface_damage') || 0) + 1));
@@ -1054,6 +1504,14 @@ export async function createWorkOrderFromSignalFusionData(signalCase: SignalFusi
         return { order: existing, created: false as const };
     }
 
+    const defaults = await getWorkOrderDefaultsData();
+    const signalDefaults = defaults.signal;
+    const dueHours = signalCase.severity === 'critical'
+        ? signalDefaults.due_hours.critical
+        : signalCase.severity === 'high'
+            ? signalDefaults.due_hours.high
+            : signalDefaults.due_hours.standard;
+
     const order = await insertRow<WorkOrder>('work_orders', {
         order_number: nextWorkOrderNumber(),
         title: `${signalCase.road_name} fused signal response`,
@@ -1063,9 +1521,9 @@ export async function createWorkOrderFromSignalFusionData(signalCase: SignalFusi
         source_id: signalCase.id,
         priority: signalCase.severity,
         status: 'queued',
-        assigned_department: 'Road Infrastructure',
-        assigned_crew: signalCase.severity === 'critical' ? 'Rapid Response Crew' : 'Crew Fusion Ops',
-        due_by: new Date(Date.now() + (signalCase.severity === 'critical' ? 8 : signalCase.severity === 'high' ? 18 : 36) * 60 * 60 * 1000).toISOString(),
+        assigned_department: signalDefaults.department,
+        assigned_crew: signalCase.severity === 'critical' ? signalDefaults.crews.critical : signalDefaults.crews.standard,
+        due_by: new Date(Date.now() + dueHours * 60 * 60 * 1000).toISOString(),
         estimated_cost_inr: 70000 + signalCase.fleet_hits * 25000 + signalCase.survey_hits * 15000 + signalCase.field_hits * 12000 + signalCase.citizen_reports_48h * 10000,
         bilingual_summary: {
             en: `${signalCase.summary} Recommended action: ${signalCase.recommended_action}`,
@@ -1090,12 +1548,18 @@ export async function createWorkOrderFromFleetEventData(event: FleetCameraEvent)
         return { order: existing, created: false as const };
     }
 
+    const defaults = await getWorkOrderDefaultsData();
+    const fleetDefaults = defaults.fleet;
+
     const priority: WorkOrder['priority'] = event.severity === 'critical'
         ? 'critical'
         : event.severity === 'high'
             ? 'high'
             : 'medium';
     const ward = await resolveWardForRoad(event.road_name);
+    const dueHours = priority === 'critical'
+        ? fleetDefaults.due_hours.critical
+        : fleetDefaults.due_hours.standard;
 
     const order = await insertRow<WorkOrder>('work_orders', {
         order_number: nextWorkOrderNumber(),
@@ -1106,10 +1570,10 @@ export async function createWorkOrderFromFleetEventData(event: FleetCameraEvent)
         source_id: event.id,
         priority,
         status: 'queued',
-        assigned_department: 'Fleet Triage Cell',
-        assigned_crew: priority === 'critical' ? 'Rapid Response Crew' : 'Crew Camera Ops',
-        due_by: new Date(Date.now() + (priority === 'critical' ? 6 : 24) * 60 * 60 * 1000).toISOString(),
-        estimated_cost_inr: priority === 'critical' ? 140000 : 70000,
+        assigned_department: fleetDefaults.department,
+        assigned_crew: priority === 'critical' ? fleetDefaults.crews.critical : fleetDefaults.crews.standard,
+        due_by: new Date(Date.now() + dueHours * 60 * 60 * 1000).toISOString(),
+        estimated_cost_inr: priority === 'critical' ? fleetDefaults.estimated_cost_inr.critical : fleetDefaults.estimated_cost_inr.standard,
         bilingual_summary: {
             en: `${event.event_type.replace(/_/g, ' ')} detected by ${event.partner} on ${event.route_name}.`,
             hi: `${event.partner} द्वारा ${event.route_name} पर ${event.event_type.replace(/_/g, ' ')} का पता चला।`
@@ -1188,6 +1652,7 @@ export async function listExcavationPermitsData() {
 
 export async function listCoordinationBundlesData() {
     const rows = await selectRows<any>('excavation_bundles', 'updated_at', false);
+    const defaults = await getCoordinationDefaultsData();
     return rows.map((row) => ({
         id: row.id,
         bundle_code: row.bundle_code,
@@ -1196,14 +1661,14 @@ export async function listCoordinationBundlesData() {
         recommended_start: row.recommended_start,
         recommended_end: row.recommended_end,
         traffic_impact_score: row.traffic_impact_score,
-        delay_probability: row.delay_probability,
-        cost_savings_inr: row.cost_savings_inr,
-        coordination_dept: row.coordination_dept,
         rationale: row.rationale,
+        coordination_dept: row.coordination_dept,
+        cost_savings_inr: row.cost_savings_inr,
+        delay_probability: row.delay_probability,
         permits: row.permits || [],
-        recommended_window: row.recommended_window || row.preferred_time_slot || 'Night Shift',
-        emergency_protocol: row.emergency_protocol || 'Standard excavation protocol',
-        notification_plan: row.notification_plan || 'Ward notice and traffic detour advisory',
+        recommended_window: row.recommended_window || row.preferred_time_slot || defaults.recommended_window,
+        emergency_protocol: row.emergency_protocol || defaults.standard_emergency_protocol,
+        notification_plan: row.notification_plan || defaults.notification_plan,
         qr_board_url: row.qr_board_url || ''
     })) as CoordinationBundle[];
 }
@@ -1242,13 +1707,14 @@ export async function listRoadTwinSnapshotsData() {
 
 export async function listAccessProfilesData() {
     const rows = await selectRows<any>('profiles', 'updated_at', false);
+    const { default_city } = await getGeoDefaultsData();
     return rows.map((row) => ({
         id: row.id,
         full_name: row.full_name || row.email || 'Unnamed user',
         email: row.email,
         role: row.role,
         department: row.department || null,
-        city: row.city || 'Indore',
+        city: row.city || default_city,
         is_active: Boolean(row.is_active),
         last_active_at: row.updated_at || row.created_at,
         clearance: clearanceForRole(row.role)
@@ -1264,6 +1730,8 @@ export async function syncFieldCaptureDraftData(draftId: string) {
     if (!draft) {
         return null;
     }
+
+    const defaults = await getFieldSyncDefaultsData();
 
     const syncedAt = new Date().toISOString();
     const syncedDraft = await saveFieldCaptureDraftData({
@@ -1281,45 +1749,40 @@ export async function syncFieldCaptureDraftData(draftId: string) {
             lat_center: draft.lat,
             lng_center: draft.lng,
             photo_url: '',
-            ai_health_score: 63,
-            ai_condition: 'Field sync pending review',
+            ai_health_score: defaults.survey.health_score,
+            ai_condition: defaults.survey.condition,
             ai_defects: [],
-            ai_confidence: 0.79,
+            ai_confidence: defaults.survey.confidence,
             created_at: syncedAt
         });
     }
 
     if (draft.workflow === 'emergency') {
         const incidentType = draft.emergency_type || 'road_collapse';
+        const emergencyDefaults = defaults.emergency;
         await saveEmergencyIncidentData({
             id: `incident-${Date.now()}`,
             permit_number: draft.permit_number || `EMR-${Date.now()}`,
             road_name: draft.road_name,
             ward: draft.ward,
             incident_type: incidentType,
-            protocol: incidentType === 'gas_leak'
-                ? 'Protocol A'
-                : incidentType === 'electrical_fault'
-                    ? 'Protocol B'
-                    : incidentType === 'burst_main'
-                        ? 'Protocol C'
-                        : 'Protocol D',
-            severity: incidentType === 'gas_leak' || incidentType === 'road_collapse' ? 'critical' : 'high',
+            protocol: emergencyDefaults.protocol_by_type[incidentType],
+            severity: emergencyDefaults.severity_by_type[incidentType],
             status: 'new',
             summary: draft.summary,
             triggered_at: syncedAt,
-            response_sla_minutes: incidentType === 'gas_leak' ? 30 : 120,
-            affected_radius_m: incidentType === 'gas_leak' ? 1200 : 500,
-            diversion_route: 'Field diversion advisory pending final traffic desk confirmation.',
+            response_sla_minutes: emergencyDefaults.sla_minutes[incidentType],
+            affected_radius_m: emergencyDefaults.radius_m[incidentType],
+            diversion_route: emergencyDefaults.diversion_route,
             field_language: draft.language,
-            nearest_utilities: ['Field-reported utility depth check pending sync'],
-            notified_departments: ['PWD', 'Traffic Police'],
+            nearest_utilities: emergencyDefaults.nearest_utilities,
+            notified_departments: emergencyDefaults.notified_departments,
             permit_approval_id: null,
             post_audit_due: draft.permit_number ? new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() : null,
             checklist: [
                 { id: `check-${Date.now()}-1`, label: 'Field capture synced', owner: draft.operator_name, done: true },
-                { id: `check-${Date.now()}-2`, label: 'Supervisor review', owner: 'Control Room', done: false },
-                { id: `check-${Date.now()}-3`, label: 'Detour notice release', owner: 'Traffic Police', done: false }
+                { id: `check-${Date.now()}-2`, label: 'Supervisor review', owner: emergencyDefaults.checklist_owners.supervisor_review, done: false },
+                { id: `check-${Date.now()}-3`, label: 'Detour notice release', owner: emergencyDefaults.checklist_owners.detour_notice_release, done: false }
             ]
         });
     }
@@ -1330,14 +1793,14 @@ export async function syncFieldCaptureDraftData(draftId: string) {
         body: draft.summary,
         priority: draft.workflow === 'emergency' ? 'critical' : 'medium',
         channel: 'push',
-        audience: draft.workflow === 'utility_marking' ? 'utility_teams' : 'citizens',
+        audience: draft.workflow === 'utility_marking' ? defaults.notification.utility_audience : 'citizens',
         status: 'scheduled',
         road_name: draft.road_name,
         ward: draft.ward,
-        scheduled_for: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-        radius_m: draft.workflow === 'emergency' ? 750 : 300,
+        scheduled_for: new Date(Date.now() + defaults.notification.delay_minutes * 60 * 1000).toISOString(),
+        radius_m: draft.workflow === 'emergency' ? defaults.notification.emergency_radius_m : defaults.notification.default_radius_m,
         related_permit_number: draft.permit_number || null,
-        detour: draft.workflow === 'emergency' ? 'Rapid field sync requires corridor review.' : null,
+        detour: draft.workflow === 'emergency' ? defaults.notification.emergency_detour_text : null,
         language: draft.language
     });
 

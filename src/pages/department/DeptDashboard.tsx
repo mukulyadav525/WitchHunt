@@ -21,6 +21,8 @@ import 'leaflet/dist/leaflet.css'
 import type { RoadSegment, Defect, UtilityInfrastructure, RoadImageSurvey, Complaint, UtilityOrganization, ExcavationPermit } from '../../types'
 import { InfrastructureMap } from '../../components/map/InfrastructureMap';
 import {
+    getBrandingDefaultsData,
+    getGeoDefaultsData,
     listComplaintsData,
     listEmergencyIncidentsData,
     listExcavationPermitsData,
@@ -30,6 +32,7 @@ import {
     listUtilityOrganizationsData,
     listWorkOrdersData
 } from '../../lib/supabaseData';
+import toast from 'react-hot-toast';
 
 export function DeptDashboard() {
     const navigate = useNavigate();
@@ -42,18 +45,24 @@ export function DeptDashboard() {
     const [trafficAdvisories, setTrafficAdvisories] = useState<any[]>([]);
     const [policyAlerts, setPolicyAlerts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [defaultCity, setDefaultCity] = useState('');
+    const [departmentNodeLabel, setDepartmentNodeLabel] = useState('');
 
     useEffect(() => {
         const fetchDeptData = async () => {
             setLoading(true);
             try {
                 const { data: { user } } = await supabase.auth.getUser();
-                const [allOrgs, allInfra, allComplaints, allPermits] = await Promise.all([
+                const [brandingDefaults, geoDefaults, allOrgs, allInfra, allComplaints, allPermits] = await Promise.all([
+                    getBrandingDefaultsData(),
+                    getGeoDefaultsData(),
                     listUtilityOrganizationsData(),
                     listUtilityInfrastructureData(),
                     listComplaintsData(),
                     listExcavationPermitsData()
                 ]);
+                setDepartmentNodeLabel(brandingDefaults.department_node_label);
+                setDefaultCity(geoDefaults.default_city);
                 const defaultOrg = allOrgs[0] || null;
 
                 if (!user) {
@@ -90,11 +99,12 @@ export function DeptDashboard() {
                     setComplaints([]);
                     setPermits([]);
                 }
-            } catch {
+            } catch (error: any) {
                 setOrg(null);
                 setInfra([]);
                 setComplaints([]);
                 setPermits([]);
+                toast.error(error.message || 'Unable to load department data from Supabase.');
             } finally {
                 setLoading(false);
             }
@@ -112,28 +122,36 @@ export function DeptDashboard() {
                 setPolicyAlerts([]);
                 return;
             }
-            const [orders, incidentData, advisoryData, alertData] = await Promise.all([
-                listWorkOrdersData(),
-                listEmergencyIncidentsData(),
-                listTrafficAdvisoriesData(),
-                listPolicyAlertsData()
-            ]);
+            try {
+                const [orders, incidentData, advisoryData, alertData] = await Promise.all([
+                    listWorkOrdersData(),
+                    listEmergencyIncidentsData(),
+                    listTrafficAdvisoriesData(),
+                    listPolicyAlertsData()
+                ]);
 
-            setWorkOrders(orders.filter((order) =>
-        order.assigned_department.includes(org.code) ||
-        order.assigned_department.includes(org.name.split(' ')[0]) ||
-        order.road_name === infra[0]?.road_name
-            ));
-            setEmergencies(incidentData.filter((incident) =>
-                incident.notified_departments.some((department) => department.toLowerCase().includes(org.name.split(' ')[0].toLowerCase()) || department.toLowerCase().includes(org.code.toLowerCase()))
-            ));
-            setTrafficAdvisories(advisoryData.filter((item) =>
-                permits.some((permit) => permit.permit_number === item.permit_number)
-            ));
-            setPolicyAlerts(alertData.filter((alert) =>
-                permits.some((permit) => permit.permit_number === alert.permit_number) ||
-                infra.some((asset) => asset.road_name === alert.road_name)
-            ));
+                setWorkOrders(orders.filter((order) =>
+                    order.assigned_department.includes(org.code) ||
+                    order.assigned_department.includes(org.name.split(' ')[0]) ||
+                    order.road_name === infra[0]?.road_name
+                ));
+                setEmergencies(incidentData.filter((incident) =>
+                    incident.notified_departments.some((department) => department.toLowerCase().includes(org.name.split(' ')[0].toLowerCase()) || department.toLowerCase().includes(org.code.toLowerCase()))
+                ));
+                setTrafficAdvisories(advisoryData.filter((item) =>
+                    permits.some((permit) => permit.permit_number === item.permit_number)
+                ));
+                setPolicyAlerts(alertData.filter((alert) =>
+                    permits.some((permit) => permit.permit_number === alert.permit_number) ||
+                    infra.some((asset) => asset.road_name === alert.road_name)
+                ));
+            } catch (error: any) {
+                setWorkOrders([]);
+                setEmergencies([]);
+                setTrafficAdvisories([]);
+                setPolicyAlerts([]);
+                toast.error(error.message || 'Unable to load department operations data from Supabase.');
+            }
         };
 
         void loadOpsData();
@@ -144,6 +162,8 @@ export function DeptDashboard() {
             Initializing Agency Command...
         </div>
     );
+
+    const departmentLocationLabel = [defaultCity, departmentNodeLabel].filter(Boolean).join(' ');
 
     const kpis = [
         { label: 'Active Assets', value: infra.length, sub: 'Infrastructure Units', icon: Database, color: org.color_hex },
@@ -165,7 +185,9 @@ export function DeptDashboard() {
                         <h1 className="font-display font-black text-2xl text-[var(--text-primary)] uppercase tracking-[0.2em] flex items-center gap-3">
                             {org.name} <Badge variant="info">Agency Portal</Badge>
                         </h1>
-                        <p className="text-[var(--text-muted)] text-[10px] font-bold uppercase tracking-widest mt-1">Delhi Municipal Infrastructure Node • {org.type} Division</p>
+                        <p className="text-[var(--text-muted)] text-[10px] font-bold uppercase tracking-widest mt-1">
+                            {departmentLocationLabel ? `${departmentLocationLabel} • ` : ''}{org.type} Division
+                        </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3 flex-wrap">

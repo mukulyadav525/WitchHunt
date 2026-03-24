@@ -3,7 +3,7 @@ import { Card, Button, Badge, cn } from '../../components/ui';
 import { Camera, Search, Filter, AlertTriangle, ShieldCheck, ChevronRight, UploadCloud, Activity, MapPin } from 'lucide-react';
 import { RoadSegment, Defect } from '../../types';
 import toast from 'react-hot-toast';
-import { listDefectsData, listRoadSegmentsData, saveDefectData } from '../../lib/supabaseData';
+import { listDefectsData, listRoadSegmentsData, listRoadTwinSnapshotsData, saveDefectData } from '../../lib/supabaseData';
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
 import { invokeAIFunction } from '../../lib/edgeFunctions';
 import { supabase } from '../../lib/supabase';
@@ -13,6 +13,7 @@ export function RoadInventory() {
     const [roads, setRoads] = useState<RoadSegment[]>([]);
     const [selectedRoad, setSelectedRoad] = useState<RoadSegment | null>(null);
     const [defects, setDefects] = useState<Defect[]>([]);
+    const [roadHistory, setRoadHistory] = useState<Record<string, { month: string; score: number; defects: number; }[]>>({});
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -26,10 +27,30 @@ export function RoadInventory() {
 
     async function fetchRoads() {
         try {
-            const data = await listRoadSegmentsData();
+            const [data, twinRows] = await Promise.all([
+                listRoadSegmentsData(),
+                listRoadTwinSnapshotsData()
+            ]);
             setRoads(data);
-        } catch {
+            setRoadHistory(
+                twinRows.reduce<Record<string, { month: string; score: number; defects: number; }[]>>((acc, row) => {
+                    acc[row.road_segment_id] = [
+                        ...(acc[row.road_segment_id] || []),
+                        {
+                            month: String(row.snapshot_year),
+                            score: row.health_score,
+                            defects: row.defect_count
+                        }
+                    ];
+                    acc[row.road_segment_id].sort((a, b) => Number(a.month) - Number(b.month));
+                    return acc;
+                }, {})
+            );
+        } catch (error: any) {
             setRoads([]);
+            setRoadHistory({});
+            setSelectedRoad(null);
+            toast.error(error.message || 'Unable to load road inventory from Supabase.');
         }
     }
 
@@ -37,9 +58,26 @@ export function RoadInventory() {
         try {
             const data = await listDefectsData();
             setDefects(data.filter((defect) => defect.road_segment_id === roadId));
-        } catch {
+        } catch (error: any) {
             setDefects([]);
+            toast.error(error.message || 'Unable to load defect records from Supabase.');
         }
+    }
+
+    function readFileAsBase64(file: File) {
+        return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onerror = () => reject(new Error('Unable to read the selected image.'));
+            reader.onload = () => {
+                const result = reader.result;
+                if (typeof result !== 'string' || !result.includes(',')) {
+                    reject(new Error('Unable to encode the selected image.'));
+                    return;
+                }
+                resolve(result.split(',')[1]);
+            };
+            reader.readAsDataURL(file);
+        });
     }
 
     async function handleAIAnalysis(e: React.ChangeEvent<HTMLInputElement>) {
@@ -50,68 +88,63 @@ export function RoadInventory() {
         const toastId = toast.loading('AI: Analyzing road surface...');
 
         try {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = async () => {
-                const base64 = (reader.result as string).split(',')[1];
-                const result = await invokeAIFunction<any>('analyze-road-image', {
-                    imageBase64: base64,
-                    roadSegmentId: selectedRoad.id,
-                    userId: (await supabase.auth.getUser()).data.user?.id
-                });
-                if (result.status !== 'success') {
-                    throw new Error(result.status === 'error' ? result.error : 'Image analysis is still loading.');
-                }
+            const base64 = await readFileAsBase64(file);
+            const result = await invokeAIFunction<any>('analyze-road-image', {
+                imageBase64: base64,
+                roadSegmentId: selectedRoad.id,
+                userId: (await supabase.auth.getUser()).data.user?.id
+            });
+            if (result.status !== 'success') {
+                throw new Error(result.status === 'error' ? result.error : 'Image analysis is still loading.');
+            }
 
-                const defectsFound = result.data.defects || [];
-                if (defectsFound.length > 0) {
-                    const photoUrl = await uploadRoadImage(file, 'defect-photos');
-                    const createdDefects = await Promise.all(defectsFound.map((defect: any) => saveDefectData({
-                        id: '',
-                        road_segment_id: selectedRoad.id,
-                        defect_type: defect.type || 'surface_damage',
-                        severity: String(defect.severity || 3) as any,
-                        confidence: defect.confidence || 0.9,
-                        source: 'ai_upload',
-                        status: 'open',
-                        photo_url: photoUrl,
-                        location: selectedRoad.location ? { lat: selectedRoad.location.lat, lng: selectedRoad.location.lng } : null,
-                        area_sqm: defect.area_sqm ?? null,
-                        description: defect.description || 'AI-detected surface issue.',
-                        ai_analysis: defect,
-                        repair_priority: defect.repair_priority || 'high',
-                        estimated_cost_inr: defect.estimated_repair_cost_inr || 90000,
-                        created_at: new Date().toISOString()
-                    })));
+            const defectsFound = result.data.defects || [];
+            if (defectsFound.length > 0) {
+                const photoUrl = await uploadRoadImage(file, 'defect-photos');
+                const createdDefects = await Promise.all(defectsFound.map((defect: any) => saveDefectData({
+                    id: '',
+                    road_segment_id: selectedRoad.id,
+                    defect_type: defect.type || 'surface_damage',
+                    severity: String(defect.severity || 3) as any,
+                    confidence: defect.confidence || 0.9,
+                    source: 'ai_upload',
+                    status: 'open',
+                    photo_url: photoUrl,
+                    location: selectedRoad.location ? { lat: selectedRoad.location.lat, lng: selectedRoad.location.lng } : null,
+                    area_sqm: defect.area_sqm ?? null,
+                    description: defect.description || 'AI-detected surface issue.',
+                    ai_analysis: defect,
+                    repair_priority: defect.repair_priority || 'high',
+                    estimated_cost_inr: defect.estimated_repair_cost_inr || 90000,
+                    created_at: new Date().toISOString()
+                })));
 
-                    setDefects((current) => [...createdDefects, ...current]);
-                    await supabase
-                        .from('road_segments')
-                        .update({
-                            total_defects: (selectedRoad.total_defects || 0) + createdDefects.length,
-                            last_health_update: new Date().toISOString()
-                        })
-                        .eq('id', selectedRoad.id);
-                    await fetchRoads();
-                }
+                setDefects((current) => [...createdDefects, ...current]);
+                await supabase
+                    .from('road_segments')
+                    .update({
+                        total_defects: (selectedRoad.total_defects || 0) + createdDefects.length,
+                        last_health_update: new Date().toISOString()
+                    })
+                    .eq('id', selectedRoad.id);
+                await fetchRoads();
+            }
 
-                toast.success(`AI identified ${defectsFound.length} defect${defectsFound.length === 1 ? '' : 's'}`, { id: toastId });
-            };
+            toast.success(`AI identified ${defectsFound.length} defect${defectsFound.length === 1 ? '' : 's'}`, { id: toastId });
         } catch (err: any) {
-            toast.error(err.message, { id: toastId });
+            toast.error(err.message || 'Unable to analyze this road image.', { id: toastId });
         } finally {
             setIsAnalyzing(false);
+            e.target.value = '';
         }
     }
 
     const filteredRoads = roads.filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const historyData = selectedRoad ? [
-        { month: 'Dec', score: Math.max(selectedRoad.health_score - 18, 18), defects: Math.max((selectedRoad.total_defects || 0) - 4, 0) },
-        { month: 'Jan', score: Math.max(selectedRoad.health_score - 11, 24), defects: Math.max((selectedRoad.total_defects || 0) - 2, 0) },
-        { month: 'Feb', score: Math.max(selectedRoad.health_score - 6, 28), defects: Math.max((selectedRoad.total_defects || 0) - 1, 0) },
-        { month: 'Mar', score: selectedRoad.health_score, defects: selectedRoad.total_defects || 0 }
-    ] : [];
+    const historyData = selectedRoad ? roadHistory[selectedRoad.id] || [] : [];
+    const aiTrustScore = defects.length
+        ? defects.reduce((sum, defect) => sum + (defect.confidence || 0), 0) / defects.length
+        : null;
 
     const getHealthColor = (score: number) => {
         if (score >= 70) return 'var(--green)';
@@ -229,7 +262,7 @@ export function RoadInventory() {
                                             </div>
                                             <div className="metric-row">
                                                 <span className="metric-label" style={{ fontSize: '0.78rem' }}>AI Trust</span>
-                                                <span className="metric-value" style={{ fontSize: '0.78rem' }}>0.982</span>
+                                                <span className="metric-value" style={{ fontSize: '0.78rem' }}>{aiTrustScore ? aiTrustScore.toFixed(3) : 'N/A'}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -280,23 +313,29 @@ export function RoadInventory() {
                                             </div>
                                         </div>
                                         <div style={{ height: 180 }}>
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <AreaChart data={historyData}>
-                                                    <defs>
-                                                        <linearGradient id="roadHistoryFill" x1="0" y1="0" x2="0" y2="1">
-                                                            <stop offset="5%" stopColor="var(--blue)" stopOpacity={0.3} />
-                                                            <stop offset="95%" stopColor="var(--blue)" stopOpacity={0} />
-                                                        </linearGradient>
-                                                    </defs>
-                                                    <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
-                                                    <Tooltip />
-                                                    <Area type="monotone" dataKey="score" stroke="var(--blue)" fill="url(#roadHistoryFill)" strokeWidth={2} />
-                                                </AreaChart>
-                                            </ResponsiveContainer>
+                                            {historyData.length > 0 ? (
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <AreaChart data={historyData}>
+                                                        <defs>
+                                                            <linearGradient id="roadHistoryFill" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor="var(--blue)" stopOpacity={0.3} />
+                                                                <stop offset="95%" stopColor="var(--blue)" stopOpacity={0} />
+                                                            </linearGradient>
+                                                        </defs>
+                                                        <XAxis dataKey="month" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                                                        <Tooltip />
+                                                        <Area type="monotone" dataKey="score" stroke="var(--blue)" fill="url(#roadHistoryFill)" strokeWidth={2} />
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
+                                            ) : (
+                                                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                                    No historical twin snapshots recorded yet.
+                                                </div>
+                                            )}
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 'var(--space-4)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                                            <span>Defects in latest cycle: <strong>{selectedRoad.total_defects || 0}</strong></span>
-                                            <span>Monitoring cadence: <strong>Weekly</strong></span>
+                                            <span>Snapshots recorded: <strong>{historyData.length}</strong></span>
+                                            <span>Last health sync: <strong>{selectedRoad.last_health_update ? new Date(selectedRoad.last_health_update).toLocaleDateString() : 'Pending'}</strong></span>
                                         </div>
                                     </Card>
                                 </div>

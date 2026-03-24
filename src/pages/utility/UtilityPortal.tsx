@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, Button, Badge, Input } from '../../components/ui';
 import { Zap, Droplets, Flame, Activity, ShieldAlert, Upload, Plus, Search, ChevronRight, Cable, Layers3 } from 'lucide-react';
 import { UtilityConflictZone, UtilityInfrastructure, UtilityOrganization } from '../../types';
@@ -8,8 +9,10 @@ import {
     listUtilityOrganizationsData
 } from '../../lib/supabaseData';
 import { cn } from '../../lib/utils';
+import toast from 'react-hot-toast';
 
 export function UtilityPortal() {
+    const navigate = useNavigate();
     const [orgs, setOrgs] = useState<UtilityOrganization[]>([]);
     const [infra, setInfra] = useState<UtilityInfrastructure[]>([]);
     const [selectedOrg, setSelectedOrg] = useState<string | null>(null);
@@ -35,11 +38,12 @@ export function UtilityPortal() {
             setInfra(nextInfra);
             setConflicts(nextConflicts);
             setSelectedOrg((current) => current || nextOrgs[0]?.id || null);
-        } catch {
+        } catch (error: any) {
             setOrgs([]);
             setInfra([]);
             setConflicts([]);
             setSelectedOrg(null);
+            toast.error(error.message || 'Unable to load utility portal data from Supabase.');
         } finally {
             setLoading(false);
         }
@@ -91,6 +95,14 @@ export function UtilityPortal() {
                     </p>
                 </div>
                 <div className="flex gap-3 flex-wrap">
+                    <Button variant="ghost" className="border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]" onClick={() => navigate('/field-ar')}>
+                        <Layers3 size={16} className="mr-2" />
+                        Field AR Briefing
+                    </Button>
+                    <Button variant="ghost" className="border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]" onClick={() => navigate('/clearance')}>
+                        <ShieldAlert size={16} className="mr-2" />
+                        Pre-Dig Clearance
+                    </Button>
                     <Button variant="ghost" className="border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
                         <Upload size={16} className="mr-2" />
                         Import GIS

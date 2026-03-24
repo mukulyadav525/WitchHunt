@@ -5,13 +5,16 @@ import { Card, Button, Badge } from '../../components/ui';
 import { Zap, MapPin, Calendar, Clock, ArrowRight, LayoutGrid, CheckCircle2, AlertCircle, Siren, ShieldAlert, QrCode, Workflow } from 'lucide-react';
 import { CoordinationBundle, ExcavationPermit } from '../../types';
 import {
+    getCoordinationDefaultsData,
     listCoordinationBundlesData,
     listExcavationPermitsData,
     saveCoordinationBundleData
 } from '../../lib/supabaseData';
 import toast from 'react-hot-toast';
 
-function buildGeneratedBundle(permits: ExcavationPermit[]): CoordinationBundle {
+type CoordinationDefaults = Awaited<ReturnType<typeof getCoordinationDefaultsData>>;
+
+function buildGeneratedBundle(permits: ExcavationPermit[], defaults: CoordinationDefaults): CoordinationBundle {
     const first = permits[0];
     const startDate = permits.map((permit) => permit.requested_start_date).sort()[0];
     const endDate = permits.map((permit) => permit.requested_end_date).sort().slice(-1)[0];
@@ -19,21 +22,21 @@ function buildGeneratedBundle(permits: ExcavationPermit[]): CoordinationBundle {
     return {
         id: `bundle-${Date.now()}`,
         bundle_code: `BNDL-${first.road_name?.replace(/[^A-Z0-9]/gi, '').slice(0, 4).toUpperCase() || 'ROAD'}-${String(Date.now()).slice(-4)}`,
-        road_name: first.road_name || 'Shared corridor',
+        road_name: first.road_name || defaults.fallback_road_name,
         permit_count: permits.length,
         recommended_start: startDate,
         recommended_end: endDate,
         traffic_impact_score: Math.max(18, 62 - permits.length * 8),
         delay_probability: 0.22 + permits.length * 0.06,
         cost_savings_inr: permits.length * 240000,
-        coordination_dept: 'Integrated Utility Cell',
-        rationale: 'Generated from overlapping permit windows to avoid repeated trench restoration and duplicated traffic management.',
+        coordination_dept: defaults.department,
+        rationale: defaults.rationale,
         permits: permits.map((permit) => permit.id),
-        recommended_window: '22:00 - 05:00 with unified barricading',
+        recommended_window: defaults.recommended_window,
         emergency_protocol: permits.some((permit) => permit.urgency === 'emergency')
-            ? 'Protocol B: emergency electric/fiber response'
-            : 'Standard multi-utility supervision',
-        notification_plan: '48h citizen advisory, 24h contractor sync, QR poster auto-generated',
+            ? defaults.urgent_emergency_protocol
+            : defaults.standard_emergency_protocol,
+        notification_plan: defaults.notification_plan,
         qr_board_url: `/track/${first.permit_number}`
     };
 }
@@ -44,6 +47,7 @@ export function ExcavationOptimizer() {
     const [bundles, setBundles] = useState<CoordinationBundle[]>([]);
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [selectedPermitIds, setSelectedPermitIds] = useState<string[]>([]);
+    const [coordinationDefaults, setCoordinationDefaults] = useState<CoordinationDefaults | null>(null);
 
     useEffect(() => {
         fetchPermits();
@@ -51,21 +55,30 @@ export function ExcavationOptimizer() {
 
     async function fetchPermits() {
         try {
-            const [nextPermits, nextBundles] = await Promise.all([
+            const [nextPermits, nextBundles, defaults] = await Promise.all([
                 listExcavationPermitsData(),
-                listCoordinationBundlesData()
+                listCoordinationBundlesData(),
+                getCoordinationDefaultsData()
             ]);
             setPermits(nextPermits);
             setBundles(nextBundles);
-        } catch {
+            setCoordinationDefaults(defaults);
+        } catch (error: any) {
             setPermits([]);
             setBundles([]);
+            setCoordinationDefaults(null);
+            toast.error(error.message || 'Unable to load permit coordination data from Supabase.');
         }
     }
 
     async function handleOptimize() {
         if (selectedPermitIds.length < 2) {
             toast.error('Select at least 2 permits to run AI bundling.');
+            return;
+        }
+
+        if (!coordinationDefaults) {
+            toast.error('Coordination defaults are not available from Supabase yet.');
             return;
         }
 
@@ -85,19 +98,21 @@ export function ExcavationOptimizer() {
 
             const generatedBundles = data?.optimization?.bundles?.length
                 ? data.optimization.bundles
-                : [buildGeneratedBundle(selectedPermits)];
+                : [buildGeneratedBundle(selectedPermits, coordinationDefaults)];
 
             const savedBundles = await Promise.all(generatedBundles.map((bundle: CoordinationBundle) => saveCoordinationBundleData(bundle)));
             setBundles((current) => [...savedBundles, ...current]);
             setSelectedPermitIds([]);
             toast.success(`Created ${savedBundles.length} coordination bundle${savedBundles.length > 1 ? 's' : ''}`, { id: toastId });
-        } catch {
+        } catch (error: any) {
             const selectedPermits = permits.filter((permit) => selectedPermitIds.includes(permit.id));
-            const generatedBundle = buildGeneratedBundle(selectedPermits);
+            const generatedBundle = buildGeneratedBundle(selectedPermits, coordinationDefaults);
             const savedBundle = await saveCoordinationBundleData(generatedBundle);
             setBundles((current) => [savedBundle, ...current]);
             setSelectedPermitIds([]);
-            toast.success('Generated a coordination bundle from the selected permit overlap.', { id: toastId });
+            toast.success(error?.message
+                ? 'AI bundling was unavailable. Saved a rules-based coordination bundle from Supabase settings.'
+                : 'Generated a coordination bundle from the selected permit overlap.', { id: toastId });
         } finally {
             setIsOptimizing(false);
         }
@@ -130,6 +145,9 @@ export function ExcavationOptimizer() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <Button variant="ghost" size="sm" onClick={() => navigate('/clearance')}>
+                        Pre-Dig Clearance
+                    </Button>
                     <Button variant="ghost" size="sm" onClick={() => navigate('/traffic')}>
                         Traffic & Delay
                     </Button>
@@ -239,7 +257,7 @@ export function ExcavationOptimizer() {
                                 </div>
                                 <div>
                                     <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Traffic Window</div>
-                                    <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--blue)' }}>Night Shift</div>
+                                    <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--blue)' }}>{coordinationDefaults?.summary_window_label || 'Configured'}</div>
                                 </div>
                                 <div>
                                     <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' as const }}>Emergency Risk</div>

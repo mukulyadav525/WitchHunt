@@ -32,8 +32,10 @@ export function RoadHealthPredictions() {
         try {
             const data = await listRoadSegmentsData();
             setRoads([...data].sort((a, b) => a.health_score - b.health_score));
-        } catch {
+        } catch (error: any) {
             setRoads([]);
+            setSelectedRoad(null);
+            toast.error(error.message || 'Unable to load road segments from Supabase.');
         }
     }
 
@@ -41,8 +43,9 @@ export function RoadHealthPredictions() {
         try {
             const predictions = await listHealthPredictionsData();
             setPrediction(predictions.find((item) => item.road_segment_id === roadId) || null);
-        } catch {
+        } catch (error: any) {
             setPrediction(null);
+            toast.error(error.message || 'Unable to load prediction history from Supabase.');
         }
     }
 
@@ -92,9 +95,13 @@ export function RoadHealthPredictions() {
     function handleCreateWorkOrder() {
         if (!selectedRoad || !prediction) return;
         void (async () => {
-            const result = await createWorkOrderFromPredictionData(selectedRoad, prediction);
-            toast.success(result.created ? 'Preventive work order generated.' : 'Open work order already exists for this prediction.');
-            navigate('/work-orders');
+            try {
+                const result = await createWorkOrderFromPredictionData(selectedRoad, prediction);
+                toast.success(result.created ? 'Preventive work order generated.' : 'Open work order already exists for this prediction.');
+                navigate('/work-orders');
+            } catch (error: any) {
+                toast.error(error.message || 'Unable to generate a preventive work order.');
+            }
         })();
     }
 

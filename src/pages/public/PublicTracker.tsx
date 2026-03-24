@@ -27,7 +27,8 @@ import {
     listPublicVerificationEventsData,
     listTrafficAdvisoriesData,
     listWorkOrdersData,
-    recordPublicVerificationEventData
+    recordPublicVerificationEventData,
+    resolveWardLabelData
 } from '../../lib/supabaseData';
 import { cn } from '../../lib/utils';
 
@@ -99,7 +100,7 @@ export function PublicTracker() {
                 const insertedVerification = await recordPublicVerificationEventData({
                     permit_number: worksiteRecord.permit_number,
                     road_name: worksiteRecord.road_name,
-                    ward: worksiteRecord.ward || 'Ward not tagged',
+                    ward: await resolveWardLabelData(worksiteRecord.ward),
                     source: 'tracker_search',
                     outcome: 'verified'
                 });

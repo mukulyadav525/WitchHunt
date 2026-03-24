@@ -16,8 +16,6 @@ Go to **SQL Editor** → New Query → paste entire contents of [`supabase/schem
 
 ### Step 3 — Seed Demo Data
 Paste and run [`supabase/seed.sql`](./supabase/seed.sql)
-
-### Step 4 — Create Auth Users
 Go to **Authentication** → **Users** → Add User for each:
 
 | Name | Email | Password | Role (set after) |

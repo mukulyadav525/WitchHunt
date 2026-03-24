@@ -236,6 +236,9 @@ export interface UtilityOrganization {
     code: string
     name: string
     type: string
+    contact_email?: string | null
+    contact_phone?: string | null
+    portal_access_enabled?: boolean
     color_hex: string
     icon: string
 }
@@ -266,6 +269,8 @@ export interface UtilityInfrastructure {
 
 export interface UtilityConflictZone {
     id: string
+    infra_id_1?: string | null
+    infra_id_2?: string | null
     conflict_type: string
     risk_level: 'low' | 'medium' | 'high' | 'critical'
     notes: string
@@ -565,6 +570,46 @@ export interface PermitApprovalRecord {
     closure_state: 'pending' | 'documenting' | 'ready_for_archive' | 'archived'
     closure_evidence: ClosureEvidenceItem[]
     steps: PermitApprovalStep[]
+}
+
+export interface PreDigChecklistItem {
+    id: string
+    label: string
+    owner: string
+    done: boolean
+    note?: string | null
+}
+
+export interface PreDigClearanceRecord {
+    id: string
+    permit_id?: string | null
+    permit_number: string
+    road_name: string
+    ward: string
+    organization: string
+    status: 'blocked' | 'gpr_required' | 'restricted' | 'cleared'
+    risk_level: RiskLevel
+    risk_score: number
+    requested_depth_m: number
+    nearest_utility_depth_m?: number | null
+    safe_clearance_margin_m?: number | null
+    conflict_count: number
+    critical_conflict_count: number
+    utility_types: string[]
+    required_actions: string[]
+    checklist: PreDigChecklistItem[]
+    field_marking_status: 'not_started' | 'queued_offline' | 'ready_to_sync' | 'synced'
+    latest_field_note?: string | null
+    ar_overlay_status: 'ready' | 'limited' | 'not_ready'
+    gpr_required: boolean
+    blockchain_verified: boolean
+    qr_board_ready: boolean
+    twin_snapshot_year?: number | null
+    twin_note?: string | null
+    decision_owner: string
+    decision_note?: string | null
+    approved_at?: string | null
+    updated_at: string
 }
 
 export interface RouteAlertSubscription {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge, Button, Card, Input } from '../../components/ui';
 import {
+    getGeoDefaultsData,
     listCitizenChampionsData,
     listCitizenCompletionFeedbackData,
     listClosureProofPackagesData,
@@ -84,6 +85,7 @@ export function ExecutiveCommandCenter() {
     const [routeSubscriptions, setRouteSubscriptions] = useState<RouteAlertSubscription[]>([]);
     const [citizenChampions, setCitizenChampions] = useState<CitizenChampion[]>([]);
     const [wardLeaderboard, setWardLeaderboard] = useState<WardLeaderboardEntry[]>([]);
+    const [fallbackWardLabel, setFallbackWardLabel] = useState('');
 
     useEffect(() => {
         const loadData = async () => {
@@ -99,7 +101,8 @@ export function ExecutiveCommandCenter() {
                 nextNotifications,
                 nextRouteSubscriptions,
                 nextCitizenChampions,
-                nextWardLeaderboard
+                nextWardLeaderboard,
+                geoDefaults
             ] = await Promise.all([
                 listPublicWorksitesData(),
                 listWorkOrdersData(),
@@ -112,7 +115,8 @@ export function ExecutiveCommandCenter() {
                 listSmartNotificationsData(),
                 listRouteAlertSubscriptionsData(),
                 listCitizenChampionsData(),
-                listWardLeaderboardData()
+                listWardLeaderboardData(),
+                getGeoDefaultsData()
             ]);
             setWorksites(nextWorksites);
             setWorkOrders(nextWorkOrders);
@@ -126,25 +130,26 @@ export function ExecutiveCommandCenter() {
             setRouteSubscriptions(nextRouteSubscriptions);
             setCitizenChampions(nextCitizenChampions);
             setWardLeaderboard(nextWardLeaderboard);
-            setSelectedWardName((current) => current || nextWardLeaderboard[0]?.ward || nextWorksites[0]?.ward || 'Ward not tagged');
+            setFallbackWardLabel(geoDefaults.unassigned_ward_label);
+            setSelectedWardName((current) => current || nextWardLeaderboard[0]?.ward || nextWorksites[0]?.ward || geoDefaults.unassigned_ward_label);
         };
 
         void loadData();
     }, []);
 
-    const wardByPermit = new Map(worksites.map((item) => [item.permit_number, item.ward || 'Ward not tagged'] as const));
-    const wardByRoad = new Map(worksites.map((item) => [item.road_name, item.ward || 'Ward not tagged'] as const));
+    const wardByPermit = new Map(worksites.map((item) => [item.permit_number, item.ward || fallbackWardLabel] as const));
+    const wardByRoad = new Map(worksites.map((item) => [item.road_name, item.ward || fallbackWardLabel] as const));
 
     const wardSummaries = useMemo(() => {
         const wards = Array.from(new Set([
-            ...worksites.map((item) => item.ward || 'Ward not tagged'),
+            ...worksites.map((item) => item.ward || fallbackWardLabel),
             ...wardLeaderboard.map((item) => item.ward),
             ...routeSubscriptions.map((item) => item.ward),
             ...traffic.map((item) => item.ward)
         ]));
 
         return wards.map((ward) => {
-            const wardWorksites = worksites.filter((item) => (item.ward || 'Ward not tagged') === ward);
+            const wardWorksites = worksites.filter((item) => (item.ward || fallbackWardLabel) === ward);
             const wardOrders = workOrders.filter((item) => item.ward === ward);
             const wardTraffic = traffic.filter((item) => item.ward === ward);
             const wardFeedback = feedback.filter((item) => item.ward === ward);

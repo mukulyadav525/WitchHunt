@@ -6,3 +6,4 @@ dist/
 .vscode/
 *.tsbuildinfo
 prd2.txt
+supabase/.temp/

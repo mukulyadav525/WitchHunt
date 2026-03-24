@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, Button, Badge } from '../../components/ui';
 import { CrossSectionDiagram } from '../../components/map/CrossSectionDiagram';
 import {
@@ -10,6 +10,7 @@ import {
 } from '../../lib/supabaseData';
 import { PublicWorksite, RoadSegment, UtilityInfrastructure } from '../../types';
 import { Activity, ArrowRight, Construction, Layers3, MapPin, ShieldAlert, ShieldCheck, Waves } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 type UtilityLayer = UtilityInfrastructure['utility_type'];
 
@@ -17,12 +18,13 @@ const ALL_LAYERS: UtilityLayer[] = ['water', 'electricity', 'gas', 'telecom', 's
 
 export function DigitalTwinRoadView() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [roads, setRoads] = useState<RoadSegment[]>([]);
     const [utilities, setUtilities] = useState<UtilityInfrastructure[]>([]);
     const [worksites, setWorksites] = useState<PublicWorksite[]>([]);
     const [roadSnapshots, setRoadSnapshots] = useState<Record<string, { year: number; health_score: number; defect_count: number; visible_utilities: number; active_workzones: number; note: string; }[]>>({});
     const [selectedRoadId, setSelectedRoadId] = useState<string>('');
-    const [selectedYear, setSelectedYear] = useState<number>(2026);
+    const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
     const [activeLayers, setActiveLayers] = useState<Set<UtilityLayer>>(new Set(ALL_LAYERS));
 
     useEffect(() => {
@@ -55,17 +57,20 @@ export function DigitalTwinRoadView() {
                 setUtilities(utilityData);
                 setWorksites(worksiteData);
                 setRoadSnapshots(groupedSnapshots);
-                setSelectedRoadId((current) => current || roadData[0]?.id || '');
-            } catch {
+                const requestedRoadName = searchParams.get('road');
+                const requestedRoad = roadData.find((item) => item.name === requestedRoadName) || null;
+                setSelectedRoadId((current) => requestedRoad?.id || current || roadData[0]?.id || '');
+            } catch (error: any) {
                 setRoads([]);
                 setUtilities([]);
                 setWorksites([]);
                 setRoadSnapshots({});
+                toast.error(error.message || 'Unable to load digital twin data from Supabase.');
             }
         };
 
         loadData();
-    }, []);
+    }, [searchParams]);
 
     const selectedRoad = roads.find((road) => road.id === selectedRoadId) || roads[0] || null;
     const snapshots = selectedRoad ? roadSnapshots[selectedRoad.id] || [] : [];
@@ -115,6 +120,12 @@ export function DigitalTwinRoadView() {
                 </div>
                 <div className="flex items-center gap-3">
                     <Badge variant="info">F-08 Digital Twin</Badge>
+                    <Button variant="ghost" onClick={() => navigate(`/field-ar?road=${encodeURIComponent(selectedRoad.name)}`)}>
+                        Field AR
+                    </Button>
+                    <Button variant="ghost" onClick={() => navigate(`/clearance?road=${encodeURIComponent(selectedRoad.name)}`)}>
+                        Pre-Dig Clearance
+                    </Button>
                     <Button variant="ghost" onClick={() => navigate(`/roads/${selectedRoad.id}`)}>
                         Open Road Passport
                     </Button>

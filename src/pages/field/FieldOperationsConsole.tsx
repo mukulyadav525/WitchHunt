@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Badge, Button, Card, Input, TextArea } from '../../components/ui';
 import {
     createFieldCaptureDraftData,
     listEmergencyIncidentsData,
     listFieldCaptureDraftsData,
     listPermitApprovalsData,
+    listPreDigClearancesData,
     listPublicWorksitesData,
+    listRoadSegmentsData,
     listRoadSurveysData,
     syncFieldCaptureDraftData
 } from '../../lib/supabaseData';
-import type { FieldCaptureDraft, FieldWorkflowKind } from '../../types';
+import type { FieldCaptureDraft, FieldWorkflowKind, PreDigClearanceRecord, RoadSegment } from '../../types';
 import {
     AlertTriangle,
     ArrowRight,
@@ -62,6 +64,7 @@ function statusBadge(status: FieldCaptureDraft['status']) {
 
 export function FieldOperationsConsole() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [workflow, setWorkflow] = useState<FieldWorkflowKind>('road_survey');
     const [drafts, setDrafts] = useState<FieldCaptureDraft[]>([]);
     const [operatorName, setOperatorName] = useState('');
@@ -73,33 +76,58 @@ export function FieldOperationsConsole() {
     const [photoCount, setPhotoCount] = useState('2');
     const [permitNumber, setPermitNumber] = useState('');
     const [emergencyType, setEmergencyType] = useState<NonNullable<FieldCaptureDraft['emergency_type']>>('burst_main');
-    const [lat, setLat] = useState('22.7198');
-    const [lng, setLng] = useState('75.8578');
+    const [lat, setLat] = useState('');
+    const [lng, setLng] = useState('');
     const [surveys, setSurveys] = useState<any[]>([]);
     const [emergencies, setEmergencies] = useState<any[]>([]);
     const [approvals, setApprovals] = useState<any[]>([]);
     const [worksites, setWorksites] = useState<any[]>([]);
+    const [clearances, setClearances] = useState<PreDigClearanceRecord[]>([]);
+    const [roads, setRoads] = useState<RoadSegment[]>([]);
 
     useEffect(() => {
         const loadData = async () => {
-            const [nextDrafts, nextSurveys, nextEmergencies, nextApprovals, nextWorksites] = await Promise.all([
+            const [nextDrafts, nextSurveys, nextEmergencies, nextApprovals, nextWorksites, nextClearances, nextRoads] = await Promise.all([
                 listFieldCaptureDraftsData(),
                 listRoadSurveysData(),
                 listEmergencyIncidentsData(),
                 listPermitApprovalsData(),
-                listPublicWorksitesData()
+                listPublicWorksitesData(),
+                listPreDigClearancesData(),
+                listRoadSegmentsData()
             ]);
             setDrafts(nextDrafts);
             setSurveys(nextSurveys);
             setEmergencies(nextEmergencies);
             setApprovals(nextApprovals);
             setWorksites(nextWorksites);
-            setRoadName((current) => current || nextWorksites[0]?.road_name || '');
-            setWard((current) => current || nextWorksites[0]?.ward || '');
+            setClearances(nextClearances);
+            setRoads(nextRoads);
+            const permitQuery = searchParams.get('permit');
+            const linkedWorksite = nextWorksites.find((item) => item.permit_number === permitQuery) || null;
+            const linkedRoad = nextRoads.find((item) => item.name === linkedWorksite?.road_name) || null;
+            setRoadName((current) => linkedWorksite?.road_name || current || nextWorksites[0]?.road_name || '');
+            setWard((current) => linkedWorksite?.ward || current || nextWorksites[0]?.ward || '');
+            setPermitNumber((current) => permitQuery || current);
+            setLat((current) => {
+                if (linkedWorksite?.location?.lat != null) return String(linkedWorksite.location.lat);
+                if (linkedRoad?.location?.lat != null) return String(linkedRoad.location.lat);
+                return current;
+            });
+            setLng((current) => {
+                if (linkedWorksite?.location?.lng != null) return String(linkedWorksite.location.lng);
+                if (linkedRoad?.location?.lng != null) return String(linkedRoad.location.lng);
+                return current;
+            });
+            if (permitQuery) {
+                setWorkflow('utility_marking');
+                setSummary('Utility marking note captured before excavation and hand-dig clearance.');
+                setVoiceNote('केबल/पाइप की गहराई और दिशा को साइट पर मार्क किया गया है।');
+            }
         };
 
         void loadData();
-    }, []);
+    }, [searchParams]);
 
     const stats = useMemo(() => ({
         queued: drafts.filter((draft) => draft.status !== 'synced').length,
@@ -129,10 +157,25 @@ export function FieldOperationsConsole() {
                 action: () => navigate('/approvals')
             }));
 
-        return [...emergencyTasks, ...approvalTasks].slice(0, 4);
-    }, [approvals, emergencies, navigate]);
+        const clearanceTasks = clearances
+            .filter((record) => record.status === 'blocked' || record.status === 'gpr_required')
+            .map((record) => ({
+                id: record.id,
+                type: 'Clearance',
+                title: `${record.permit_number} · ${record.status.replace(/_/g, ' ')}`,
+                note: `${record.road_name} needs dig-safe review before excavation starts.`,
+                action: () => navigate(`/clearance?permit=${record.permit_number}`)
+            }));
+
+        return [...clearanceTasks, ...emergencyTasks, ...approvalTasks].slice(0, 4);
+    }, [approvals, clearances, emergencies, navigate]);
 
     const selectedWorkflow = WORKFLOW_COPY[workflow];
+    const fieldArTarget = permitNumber.trim()
+        ? `/field-ar?permit=${encodeURIComponent(permitNumber.trim())}`
+        : roadName.trim()
+            ? `/field-ar?road=${encodeURIComponent(roadName.trim())}`
+            : '/field-ar';
 
     const resetFormForWorkflow = (nextWorkflow: FieldWorkflowKind) => {
         setWorkflow(nextWorkflow);
@@ -154,9 +197,21 @@ export function FieldOperationsConsole() {
         const normalizedRoad = roadName.trim();
         const normalizedWard = ward.trim();
         const normalizedOperator = operatorName.trim();
+        const matchedWorksite = worksites.find((item) =>
+            (permitNumber.trim() && item.permit_number === permitNumber.trim())
+            || item.road_name === normalizedRoad
+        ) || null;
+        const matchedRoad = roads.find((item) => item.name === normalizedRoad) || null;
+        const derivedLat = Number(lat) || matchedWorksite?.location?.lat || matchedRoad?.location?.lat || null;
+        const derivedLng = Number(lng) || matchedWorksite?.location?.lng || matchedRoad?.location?.lng || null;
 
         if (!normalizedRoad || !normalizedWard || !normalizedOperator) {
             toast.error('Add road, ward, and operator details before saving.');
+            return;
+        }
+
+        if (derivedLat == null || derivedLng == null) {
+            toast.error('Add valid coordinates or link this field record to a mapped worksite.');
             return;
         }
 
@@ -170,8 +225,8 @@ export function FieldOperationsConsole() {
                 voice_note_text: voiceNote.trim(),
                 summary: summary.trim() || 'Field capture saved for offline sync.',
                 photo_count: Number(photoCount) || 1,
-                lat: Number(lat) || 22.7198,
-                lng: Number(lng) || 75.8578,
+                lat: derivedLat,
+                lng: derivedLng,
                 permit_number: permitNumber.trim() || null,
                 emergency_type: workflow === 'emergency' ? emergencyType : null
             });
@@ -212,6 +267,12 @@ export function FieldOperationsConsole() {
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                     <Badge variant="info">3-button field mode</Badge>
+                    <Button variant="ghost" onClick={() => navigate(fieldArTarget)}>
+                        Field AR Briefing
+                    </Button>
+                    <Button variant="ghost" onClick={() => navigate('/clearance')}>
+                        Pre-Dig Clearance
+                    </Button>
                     <Button variant="ghost" onClick={() => navigate('/surveys')}>
                         Full Survey Studio
                     </Button>
@@ -349,8 +410,8 @@ export function FieldOperationsConsole() {
                                 <Button onClick={handleSaveOffline}>
                                     <WifiOff size={14} /> Save Offline
                                 </Button>
-                                <Button variant="secondary" onClick={() => navigate('/utility')}>
-                                    <ShieldCheck size={14} /> Open Utility Twin
+                                <Button variant="secondary" onClick={() => navigate(fieldArTarget)}>
+                                    <ShieldCheck size={14} /> Open Field AR
                                 </Button>
                                 <Button variant="ghost" onClick={() => navigate('/emergency')}>
                                     <Siren size={14} /> Emergency Desk

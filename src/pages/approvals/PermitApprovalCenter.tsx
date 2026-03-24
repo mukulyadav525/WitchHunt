@@ -4,13 +4,14 @@ import { Card, Button, Badge } from '../../components/ui';
 import {
     listPermitActionAuditLogsData,
     listPermitApprovalsData,
+    listPreDigClearancesData,
     listPolicyAlertsData,
     listPublicVerificationEventsData,
     listPublicWorksitesData,
     savePermitApprovalRecordData,
     savePublicWorksiteData
 } from '../../lib/supabaseData';
-import { ClosureEvidenceStage, PermitActionAuditLog, PermitApprovalRecord, PolicyAlert, PublicVerificationEvent, PublicWorksite, PublicWorksiteTimelineItem } from '../../types';
+import { ClosureEvidenceStage, PermitActionAuditLog, PermitApprovalRecord, PolicyAlert, PreDigClearanceRecord, PublicVerificationEvent, PublicWorksite, PublicWorksiteTimelineItem } from '../../types';
 import { AlertTriangle, ArrowRight, Camera, CheckCircle2, Clock, ImageOff, QrCode, ShieldCheck, Siren, Stamp, Archive } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -40,21 +41,24 @@ export function PermitApprovalCenter() {
     const navigate = useNavigate();
     const [records, setRecords] = useState<PermitApprovalRecord[]>([]);
     const [worksites, setWorksites] = useState<PublicWorksite[]>([]);
+    const [clearances, setClearances] = useState<PreDigClearanceRecord[]>([]);
     const [auditLogs, setAuditLogs] = useState<PermitActionAuditLog[]>([]);
     const [verifications, setVerifications] = useState<PublicVerificationEvent[]>([]);
     const [policyAlerts, setPolicyAlerts] = useState<PolicyAlert[]>([]);
     const [selectedId, setSelectedId] = useState<string>('');
 
     const loadData = async () => {
-        const [nextRecords, nextWorksites, nextAuditLogs, nextVerifications, nextPolicyAlerts] = await Promise.all([
+        const [nextRecords, nextWorksites, nextClearances, nextAuditLogs, nextVerifications, nextPolicyAlerts] = await Promise.all([
             listPermitApprovalsData(),
             listPublicWorksitesData(),
+            listPreDigClearancesData(),
             listPermitActionAuditLogsData(),
             listPublicVerificationEventsData(),
             listPolicyAlertsData()
         ]);
         setRecords(nextRecords);
         setWorksites(nextWorksites);
+        setClearances(nextClearances);
         setAuditLogs(nextAuditLogs);
         setVerifications(nextVerifications);
         setPolicyAlerts(nextPolicyAlerts);
@@ -78,6 +82,9 @@ export function PermitApprovalCenter() {
     const relatedAuditLogs = selectedRecord
         ? auditLogs.filter((item) => item.permit_number === selectedRecord.permit_number)
         : [];
+    const relatedClearance = selectedRecord
+        ? clearances.find((item) => item.permit_number === selectedRecord.permit_number) || null
+        : null;
     const relatedVerifications = selectedRecord
         ? verifications.filter((item) => item.permit_number === selectedRecord.permit_number)
         : [];
@@ -193,6 +200,12 @@ export function PermitApprovalCenter() {
             return;
         }
 
+        const relatedWorksite = worksites.find((item) => item.permit_number === selectedRecord.permit_number) || null;
+        const utilityDepthFound = stage === 'after' || stage === 'during'
+            ? relatedClearance?.nearest_utility_depth_m ?? relatedClearance?.requested_depth_m ?? null
+            : null;
+        const geoTag = relatedWorksite?.location || null;
+
         void (async () => {
             await updateSelectedRecord((record) => ({
                 ...record,
@@ -209,10 +222,8 @@ export function PermitApprovalCenter() {
                                 ? 'In-progress trench and safety controls documented.'
                                 : 'Pre-work condition and barricading baseline documented.',
                         photo_url: '',
-                        utility_depth_found_m: stage === 'after' || stage === 'during' ? Number((0.6 + Math.random() * 1.5).toFixed(1)) : null,
-                        geo_tag: selectedRecord.road_name === 'MG Road'
-                            ? { lat: 22.7198, lng: 75.8578 }
-                            : { lat: 22.7418, lng: 75.9017 }
+                        utility_depth_found_m: utilityDepthFound,
+                        geo_tag: geoTag
                     }
                 ]
             }));
@@ -261,6 +272,12 @@ export function PermitApprovalCenter() {
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                     <Badge variant="info">F-05 Permit Workflow</Badge>
+                    <Button variant="ghost" onClick={() => navigate(selectedRecord ? `/field-ar?permit=${selectedRecord.permit_number}` : '/field-ar')}>
+                        Field AR Briefing
+                    </Button>
+                    <Button variant="ghost" onClick={() => navigate(selectedRecord ? `/clearance?permit=${selectedRecord.permit_number}` : '/clearance')}>
+                        Pre-Dig Clearance
+                    </Button>
                     <Button variant="ghost" onClick={() => navigate('/audit')}>
                         Audit & Ledger
                     </Button>

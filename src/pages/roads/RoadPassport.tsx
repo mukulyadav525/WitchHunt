@@ -30,6 +30,7 @@ import {
     listWorkOrdersData
 } from '../../lib/supabaseData';
 import type { FieldCaptureDraft, FleetCameraEvent, RoadImageSurvey, TrafficAdvisory, WorkOrder } from '../../types';
+import toast from 'react-hot-toast';
 
 export function RoadPassport() {
     const { id } = useParams();
@@ -46,62 +47,77 @@ export function RoadPassport() {
 
     useEffect(() => {
         const fetchData = async () => {
-            if (!id) return;
+            if (!id) {
+                setIsLoading(false);
+                return;
+            }
             setIsLoading(true);
 
-            const [
-                roads,
-                predictions,
-                nextWorkOrders,
-                nextAdvisories,
-                nextSurveys,
-                nextFieldDrafts,
-                nextFleetEvents,
-                twinRows
-            ] = await Promise.all([
-                listRoadSegmentsData(),
-                listHealthPredictionsData(),
-                listWorkOrdersData(),
-                listTrafficAdvisoriesData(),
-                listRoadSurveysData(),
-                listFieldCaptureDraftsData(),
-                listFleetCameraEventsData(),
-                listRoadTwinSnapshotsData()
-            ]);
-
-            const nextRoad = roads.find((item) => item.id === id) || null;
-            setRoad(nextRoad);
-            setPrediction(predictions.find((item) => item.road_segment_id === id) || null);
-
-            if (nextRoad) {
-                setWorkOrders(nextWorkOrders.filter((item) => item.road_name === nextRoad.name));
-                setAdvisories(nextAdvisories.filter((item) => item.road_name === nextRoad.name));
-                setSurveys(nextSurveys.filter((item) => item.road_name === nextRoad.name));
-                setFieldDrafts(nextFieldDrafts.filter((item) => item.road_name === nextRoad.name));
-                setFleetEvents(nextFleetEvents.filter((item) => item.road_name === nextRoad.name));
-                setTwinTimeline(
+            try {
+                const [
+                    roads,
+                    predictions,
+                    nextWorkOrders,
+                    nextAdvisories,
+                    nextSurveys,
+                    nextFieldDrafts,
+                    nextFleetEvents,
                     twinRows
-                        .filter((row) => row.road_segment_id === nextRoad.id)
-                        .map((row) => ({
-                            year: row.snapshot_year,
-                            health_score: row.health_score,
-                            defect_count: row.defect_count,
-                            visible_utilities: row.visible_utilities,
-                            active_workzones: row.active_workzones,
-                            note: row.note || 'Twin snapshot recorded.'
-                        }))
-                        .sort((a, b) => a.year - b.year)
-                );
-            } else {
+                ] = await Promise.all([
+                    listRoadSegmentsData(),
+                    listHealthPredictionsData(),
+                    listWorkOrdersData(),
+                    listTrafficAdvisoriesData(),
+                    listRoadSurveysData(),
+                    listFieldCaptureDraftsData(),
+                    listFleetCameraEventsData(),
+                    listRoadTwinSnapshotsData()
+                ]);
+
+                const nextRoad = roads.find((item) => item.id === id) || null;
+                setRoad(nextRoad);
+                setPrediction(predictions.find((item) => item.road_segment_id === id) || null);
+
+                if (nextRoad) {
+                    setWorkOrders(nextWorkOrders.filter((item) => item.road_name === nextRoad.name));
+                    setAdvisories(nextAdvisories.filter((item) => item.road_name === nextRoad.name));
+                    setSurveys(nextSurveys.filter((item) => item.road_name === nextRoad.name));
+                    setFieldDrafts(nextFieldDrafts.filter((item) => item.road_name === nextRoad.name));
+                    setFleetEvents(nextFleetEvents.filter((item) => item.road_name === nextRoad.name));
+                    setTwinTimeline(
+                        twinRows
+                            .filter((row) => row.road_segment_id === nextRoad.id)
+                            .map((row) => ({
+                                year: row.snapshot_year,
+                                health_score: row.health_score,
+                                defect_count: row.defect_count,
+                                visible_utilities: row.visible_utilities,
+                                active_workzones: row.active_workzones,
+                                note: row.note || 'Twin snapshot recorded.'
+                            }))
+                            .sort((a, b) => a.year - b.year)
+                    );
+                } else {
+                    setWorkOrders([]);
+                    setAdvisories([]);
+                    setSurveys([]);
+                    setFieldDrafts([]);
+                    setFleetEvents([]);
+                    setTwinTimeline([]);
+                }
+            } catch (error: any) {
+                setRoad(null);
+                setPrediction(null);
                 setWorkOrders([]);
                 setAdvisories([]);
                 setSurveys([]);
                 setFieldDrafts([]);
                 setFleetEvents([]);
                 setTwinTimeline([]);
+                toast.error(error.message || 'Unable to load this road passport from Supabase.');
+            } finally {
+                setIsLoading(false);
             }
-
-            setIsLoading(false);
         };
 
         void fetchData();
@@ -126,6 +142,12 @@ export function RoadPassport() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
+                    <Button variant="ghost" onClick={() => navigate(`/field-ar?road=${encodeURIComponent(road.name)}`)}>
+                        <Camera size={16} /> Field AR
+                    </Button>
+                    <Button variant="ghost" onClick={() => navigate(`/clearance?road=${encodeURIComponent(road.name)}`)}>
+                        <Shield size={16} /> Pre-Dig Clearance
+                    </Button>
                     <Button variant="ghost" onClick={() => navigate('/twin')}>
                         <Construction size={16} /> Open Digital Twin
                     </Button>

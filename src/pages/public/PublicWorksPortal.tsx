@@ -5,6 +5,7 @@ import {
     createCitizenCompletionFeedbackData,
     createNotificationSubscriptionData,
     createRouteAlertSubscriptionData,
+    resolveWardLabelData,
     listCitizenCompletionFeedbackData,
     listClosureProofPackagesData,
     listPaymentMilestonesData,
@@ -53,8 +54,8 @@ export function PublicWorksPortal() {
     const [routeSubscriberName, setRouteSubscriberName] = useState('');
     const [routeSubscriberPhone, setRouteSubscriberPhone] = useState('');
     const [routeChannel, setRouteChannel] = useState<'whatsapp' | 'sms' | 'push'>('whatsapp');
-    const [routeName, setRouteName] = useState(worksites[0]?.road_name || '');
-    const [routeWard, setRouteWard] = useState(worksites[0]?.ward || '');
+    const [routeName, setRouteName] = useState('');
+    const [routeWard, setRouteWard] = useState('');
     const [commuteWindow, setCommuteWindow] = useState('08:00 - 10:00');
     const [feedbackName, setFeedbackName] = useState('');
     const [feedbackRating, setFeedbackRating] = useState('5');
@@ -106,8 +107,10 @@ export function PublicWorksPortal() {
 
     useEffect(() => {
         if (!selectedPermit) return;
-        setRouteName(selectedPermit.road_name);
-        setRouteWard(selectedPermit.ward || 'Ward not tagged');
+        void (async () => {
+            setRouteName(selectedPermit.road_name);
+            setRouteWard(await resolveWardLabelData(selectedPermit.ward));
+        })();
     }, [selectedPermit]);
 
     const filteredWorksites = useMemo(() => {
@@ -142,11 +145,12 @@ export function PublicWorksPortal() {
         }
 
         try {
+            const normalizedWard = await resolveWardLabelData(selectedPermit.ward);
             const result = await createNotificationSubscriptionData({
                 worksite_id: selectedPermit.id,
                 permit_number: selectedPermit.permit_number,
                 road_name: selectedPermit.road_name,
-                ward: selectedPermit.ward || 'Ward not tagged',
+                ward: normalizedWard,
                 subscriber_name: normalizedName,
                 subscriber_phone: normalizedPhone,
                 channel: subscriberChannel,
@@ -172,7 +176,6 @@ export function PublicWorksPortal() {
         const normalizedName = routeSubscriberName.trim();
         const normalizedPhone = routeSubscriberPhone.trim();
         const normalizedRoute = routeName.trim();
-        const normalizedWard = routeWard.trim() || selectedPermit?.ward || 'Ward not tagged';
 
         if (!normalizedName || !normalizedPhone || !normalizedRoute) {
             toast.error('Enter name, phone, and route to subscribe.');
@@ -185,6 +188,7 @@ export function PublicWorksPortal() {
         }
 
         try {
+            const normalizedWard = routeWard.trim() || await resolveWardLabelData(selectedPermit?.ward);
             const result = await createRouteAlertSubscriptionData({
                 subscriber_name: normalizedName,
                 subscriber_phone: normalizedPhone,
@@ -228,10 +232,11 @@ export function PublicWorksPortal() {
         }
 
         try {
+            const normalizedWard = await resolveWardLabelData(selectedPermit.ward);
             await createCitizenCompletionFeedbackData({
                 permit_number: selectedPermit.permit_number,
                 road_name: selectedPermit.road_name,
-                ward: selectedPermit.ward || 'Ward not tagged',
+                ward: normalizedWard,
                 citizen_name: normalizedName,
                 rating: parsedRating,
                 feedback: normalizedFeedback,

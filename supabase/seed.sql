@@ -35,14 +35,14 @@ INSERT INTO public.utility_organizations (code, name, type, color_hex, icon) VAL
 ON CONFLICT (code) DO NOTHING;
 
 -- 4. UTILITY INFRASTRUCTURE
-INSERT INTO public.utility_infrastructure (utility_org_id, road_name, infra_type, utility_type, status, depth_avg_meters, material, installation_date, safety_score, condition)
+INSERT INTO public.utility_infrastructure (utility_org_id, road_name, infra_type, utility_type, status, depth_avg_m, material, installation_date, safety_score, condition)
 SELECT uo.id, rs.name, 'pipeline', uo.type, 'active', 1.5, 'DI', '2020-01-01'::date, 90, 'good'
 FROM public.utility_organizations uo
 JOIN public.road_segments rs ON rs.road_id = 'RS-IDR-001'
 WHERE uo.code = 'IMC' OR uo.code = 'IGL'
 ON CONFLICT DO NOTHING;
 
-INSERT INTO public.utility_infrastructure (utility_org_id, road_name, infra_type, utility_type, status, depth_avg_meters, material, installation_date, safety_score, condition)
+INSERT INTO public.utility_infrastructure (utility_org_id, road_name, infra_type, utility_type, status, depth_avg_m, material, installation_date, safety_score, condition)
 SELECT uo.id, rs.name, 'cable', uo.type, 'active', 0.8, 'PVC', '2021-06-15'::date, 85, 'good'
 FROM public.utility_organizations uo
 JOIN public.road_segments rs ON rs.road_id = 'RS-IDR-003'
@@ -104,3 +104,20 @@ ON CONFLICT (contractor) DO NOTHING;
 INSERT INTO public.ai_configurations (config_key, module, display_name, description, system_prompt, model_name, model_provider) VALUES
 ('smart_pothole_detector', 'pothole', 'Indore AI Vision', 'Detects road defects specifically for Indore municipal roads.', 'You are a road analyst for IMC...', 'gemini-2.0-flash', 'google')
 ON CONFLICT (config_key) DO NOTHING;
+-- 12. PRE-DIG CLEARANCES
+INSERT INTO public.pre_dig_clearances (permit_id, permit_number, road_name, ward, organization, status, risk_level, risk_score, critical_conflict_count, utility_types)
+SELECT 
+  id, 
+  permit_number, 
+  road_name, 
+  'Ward 45', 
+  organization, 
+  'restricted', 
+  'high', 
+  72, 
+  1, 
+  '{"gas", "water"}'::text[]
+FROM public.excavation_permits 
+WHERE permit_number LIKE 'PERMIT-%' 
+LIMIT 1
+ON CONFLICT (permit_number) DO NOTHING;

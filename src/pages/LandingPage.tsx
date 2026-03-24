@@ -1,16 +1,29 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { ChevronRight, Check, AlertCircle, ClipboardList, BellRing, Trophy, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getBrandingDefaultsData } from '../lib/supabaseData';
 
 export function LandingPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [supportedCities, setSupportedCities] = useState<string[]>([]);
     const { signIn } = useAuth();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        void (async () => {
+            try {
+                const brandingDefaults = await getBrandingDefaultsData();
+                setSupportedCities(brandingDefaults.supported_cities || []);
+            } catch (error: any) {
+                toast.error(error.message || 'Unable to load branding defaults from Supabase.');
+            }
+        })();
+    }, []);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -106,15 +119,16 @@ export function LandingPage() {
                             </button>
                         </div>
 
-                        <div className="mt-10 flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                            <span>Mumbai</span>
-                            <span className="h-1 w-1 rounded-full bg-[var(--brand)]" />
-                            <span>Delhi</span>
-                            <span className="h-1 w-1 rounded-full bg-[var(--blue)]" />
-                            <span>Indore</span>
-                            <span className="h-1 w-1 rounded-full bg-[var(--green)]" />
-                            <span>Pune</span>
-                        </div>
+                        {supportedCities.length > 0 && (
+                            <div className="mt-10 flex flex-wrap items-center gap-3 text-xs font-bold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                                {supportedCities.map((city, index) => (
+                                    <React.Fragment key={city}>
+                                        {index > 0 && <span className="h-1 w-1 rounded-full bg-[var(--brand)]" />}
+                                        <span>{city}</span>
+                                    </React.Fragment>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </section>
 

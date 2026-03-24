@@ -11,6 +11,7 @@ import {
     listUtilityInfrastructureData,
     listUtilityOrganizationsData
 } from '../../lib/supabaseData';
+import toast from 'react-hot-toast';
 
 type MapLayer = 'health' | 'surveys' | 'defects' | 'utilities' | 'ai_digging';
 
@@ -51,14 +52,15 @@ export function MapPage() {
             setUtilities(nextUtilities);
             setOrganizations(nextOrgs);
             setSelectedOrgIds(new Set(nextOrgs.map(o => o.id)));
-        } catch (err) {
-            console.error('Failed to fetch map data:', err);
+        } catch (error: any) {
+            console.error('Failed to fetch map data:', error);
             setRoads([]);
             setDefects([]);
             setSurveys([]);
             setUtilities([]);
             setOrganizations([]);
             setSelectedOrgIds(new Set());
+            toast.error(error.message || 'Unable to load map layers from Supabase.');
         } finally {
             setLoading(false);
         }
@@ -79,6 +81,10 @@ export function MapPage() {
     };
 
     const filteredUtilities = utilities.filter(u => selectedOrgIds.has(u.utility_org_id));
+    const legendItems = organizations.map((org) => ({
+        label: org.name,
+        color: org.color_hex
+    }));
 
     if (loading) {
         return (
@@ -131,13 +137,7 @@ export function MapPage() {
                         Pipeline Legend
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-                        {[
-                            { label: 'Gas (IGL)', color: '#ea580c' },
-                            { label: 'Water (DJB)', color: '#2563eb' },
-                            { label: 'Electric (BSES)', color: '#ca8a04' },
-                            { label: 'Fiber (Jio/Airtel)', color: '#0284c7' },
-                            { label: 'Sewage (NDMC)', color: '#7c3aed' },
-                        ].map(item => (
+                        {legendItems.map(item => (
                             <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{item.label}</span>
                                 <div style={{ width: 32, height: 3, borderRadius: 2, background: item.color }} />

@@ -37,6 +37,8 @@ const WorkOrderControlCenter = React.lazy(() => import('./pages/workorders/WorkO
 const ClosureProofCenter = React.lazy(() => import('./pages/closure/ClosureProofCenter').then((module) => ({ default: module.ClosureProofCenter })));
 const SignalFusionCenter = React.lazy(() => import('./pages/signals/SignalFusionCenter').then((module) => ({ default: module.SignalFusionCenter })));
 const TrafficDelayCommandCenter = React.lazy(() => import('./pages/traffic/TrafficDelayCommandCenter').then((module) => ({ default: module.TrafficDelayCommandCenter })));
+const PreDigClearanceCenter = React.lazy(() => import('./pages/clearance/PreDigClearanceCenter').then((module) => ({ default: module.PreDigClearanceCenter })));
+const FieldARBriefing = React.lazy(() => import('./pages/ar/FieldARBriefing').then((module) => ({ default: module.FieldARBriefing })));
 
 function AppInner() {
     useRealtime(); // Initialize global city signals
@@ -114,6 +116,8 @@ export default function App() {
                                 <Route path="/predictions/*" element={<RoadHealthPredictions />} />
                                 <Route path="/excavations/*" element={<ExcavationOptimizer />} />
                                 <Route path="/approvals/*" element={<PermitApprovalCenter />} />
+                                <Route path="/clearance/*" element={<PreDigClearanceCenter />} />
+                                <Route path="/field-ar/*" element={<FieldARBriefing />} />
                                 <Route path="/audit/*" element={<AuditComplianceCenter />} />
                                 <Route path="/closure-proof/*" element={<ClosureProofCenter />} />
                                 <Route path="/emergency/*" element={<EmergencyCommandCenter />} />
