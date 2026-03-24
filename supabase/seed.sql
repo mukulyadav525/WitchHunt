@@ -68,8 +68,8 @@ FROM public.road_segments WHERE road_id = 'RS-IDR-001' LIMIT 1;
 -- 7. PUBLIC WORKSITES
 INSERT INTO public.public_worksites (permit_number, road_name, ward, zone, purpose, department, contractor, status, progress_percent, requested_start_date, requested_end_date)
 VALUES
-('PRM-IDR-101', 'MG Road (Rajwada Circle)', 'Ward 01', 'Zone 1', 'Heritage road paving', 'IDA', 'BuildCon Indore', 'in_progress', 45, '2026-03-01', '2026-04-15'),
-('PRM-IDR-102', 'Bhawarkua Main Road', 'Ward 60', 'Zone 12', 'Flyover pillar construction', 'NHAI', 'Indore Infra Ltd', 'in_progress', 70, '2025-10-01', '2026-05-30')
+('PRM-IDR-101', 'MG Road (Rajwada Circle)', 'Ward 01', 'Zone 1', 'Heritage road paving', 'IDA', 'BuildCon Indore', 'active', 45, '2026-03-01', '2026-04-15'),
+('PRM-IDR-102', 'Bhawarkua Main Road', 'Ward 60', 'Zone 12', 'Flyover pillar construction', 'NHAI', 'Indore Infra Ltd', 'active', 70, '2025-10-01', '2026-05-30')
 ON CONFLICT (permit_number) DO NOTHING;
 
 -- 8. COMPLAINTS (Indore Citizen Feed)
@@ -96,7 +96,7 @@ ON CONFLICT DO NOTHING;
 -- 10. CONTRACTOR SCORECARDS
 INSERT INTO public.contractor_scorecards (contractor, active_projects, completed_projects, on_time_rate_percent, public_grade, watchlist) VALUES
 ('BuildCon Indore', 3, 25, 92.0, 'A', false),
-('Indore Infra Ltd', 5, 12, 84.5, 'B+', false),
+('Indore Infra Ltd', 5, 12, 84.5, 'B', false),
 ('QuickFix Roads', 2, 8, 45.0, 'D', true)
 ON CONFLICT (contractor) DO NOTHING;
 
